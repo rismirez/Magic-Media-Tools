@@ -60,7 +60,7 @@ function createWindow() {
     height: 820,
     minWidth: 760,
     minHeight: 560,
-    title: 'WebP Compressor',
+    title: 'Media Compressor',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {

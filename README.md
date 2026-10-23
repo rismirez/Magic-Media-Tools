@@ -1,4 +1,4 @@
-# WebP Compressor
+# Media Compressor
 
 Conversor y compresor de imágenes por lotes, 100 % local (nada se sube a servidores). Mismo código para **web** (Vite + TypeScript) y **escritorio** (Electron).
 

@@ -6,60 +6,93 @@ import { encode as encodePng } from '@jsquash/png';
 import { optimise } from '@jsquash/oxipng';
 import * as UTIF from 'utif2';
 import { codecParams } from './presets';
-import type { ConvertOptions, WorkerRequest, WorkerResponse } from './types';
+import { orient } from './canvas';
+import { planResize, type ResizePlan } from './geometry';
+import type { ConvertOptions, Output, WatermarkOptions, WorkerRequest, WorkerResponse } from './types';
 
 const isTiff = (mime: string, name: string) => /tiff?$/i.test(mime) || /\.tiff?$/i.test(name);
 
-async function decode(buffer: ArrayBuffer, mime: string, name: string): Promise<ImageData> {
+function toCanvas(img: ImageData): OffscreenCanvas {
+  const c = new OffscreenCanvas(img.width, img.height);
+  c.getContext('2d')!.putImageData(img, 0, 0);
+  return c;
+}
+
+async function decode(buffer: ArrayBuffer, mime: string, name: string): Promise<OffscreenCanvas> {
   if (isTiff(mime, name)) {
     const [ifd] = UTIF.decode(buffer);
     if (!ifd) throw new Error('TIFF vacío o dañado');
     UTIF.decodeImage(buffer, ifd);
     const rgba = UTIF.toRGBA8(ifd);
-    return new ImageData(new Uint8ClampedArray(rgba), ifd.width, ifd.height);
+    return toCanvas(new ImageData(new Uint8ClampedArray(rgba), ifd.width, ifd.height));
   }
+  // imageOrientation "from-image" (por defecto) aplica la orientación EXIF: las fotos salen derechas.
   const bitmap = await createImageBitmap(new Blob([buffer], { type: mime }));
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(bitmap, 0, 0);
-    return ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+    return canvas;
   } finally {
     bitmap.close();
   }
 }
 
-function fitSize(w: number, h: number, o: ConvertOptions) {
-  const rw = o.maxWidth > 0 ? o.maxWidth / w : Infinity;
-  const rh = o.maxHeight > 0 ? o.maxHeight / h : Infinity;
-  const r = Math.min(rw, rh, 1); // nunca se amplía
-  if (r >= 1) return { width: w, height: h };
-  return { width: Math.max(1, Math.round(w * r)), height: Math.max(1, Math.round(h * r)) };
-}
-
-function resize(src: ImageData, width: number, height: number): ImageData {
+/** Reduce por pasos de /2: un único salto grande produce aliasing. */
+function stepDown(src: OffscreenCanvas, width: number, height: number): OffscreenCanvas {
   if (src.width === width && src.height === height) return src;
-  // Reducción por pasos de /2 para conservar nitidez (un único salto grande produce aliasing).
-  let canvas = new OffscreenCanvas(src.width, src.height);
-  canvas.getContext('2d')!.putImageData(src, 0, 0);
-  let cw = src.width;
-  let ch = src.height;
-  while (cw / 2 > width || ch / 2 > height) {
-    const nw = Math.max(width, Math.floor(cw / 2));
-    const nh = Math.max(height, Math.floor(ch / 2));
-    const next = new OffscreenCanvas(nw, nh);
+  let canvas = src;
+  while (canvas.width / 2 > width || canvas.height / 2 > height) {
+    const next = new OffscreenCanvas(Math.max(width, Math.floor(canvas.width / 2)), Math.max(height, Math.floor(canvas.height / 2)));
     const c = next.getContext('2d')!;
     c.imageSmoothingQuality = 'high';
-    c.drawImage(canvas, 0, 0, nw, nh);
+    c.drawImage(canvas, 0, 0, next.width, next.height);
     canvas = next;
-    cw = nw;
-    ch = nh;
   }
   const out = new OffscreenCanvas(width, height);
   const ctx = out.getContext('2d')!;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(canvas, 0, 0, width, height);
-  return ctx.getImageData(0, 0, width, height);
+  return out;
+}
+
+function render(src: OffscreenCanvas, plan: ResizePlan, background: string): OffscreenCanvas {
+  let region = src;
+  if (plan.sx || plan.sy || plan.sw !== src.width || plan.sh !== src.height) {
+    region = new OffscreenCanvas(plan.sw, plan.sh);
+    region.getContext('2d')!.drawImage(src, plan.sx, plan.sy, plan.sw, plan.sh, 0, 0, plan.sw, plan.sh);
+  }
+  const scaled = stepDown(region, plan.dw, plan.dh);
+  if (plan.outW === plan.dw && plan.outH === plan.dh) return scaled;
+  const out = new OffscreenCanvas(plan.outW, plan.outH);
+  const ctx = out.getContext('2d')!;
+  if (background !== 'transparent') {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(scaled, plan.dx, plan.dy);
+  return out;
+}
+
+function drawWatermark(canvas: OffscreenCanvas, w: WatermarkOptions) {
+  const text = w.text.trim();
+  if (!text) return;
+  const ctx = canvas.getContext('2d')!;
+  const size = Math.max(10, Math.round((Math.min(canvas.width, canvas.height) * w.sizePct) / 100));
+  const margin = Math.round(size * 0.6);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, Math.max(0, w.opacity / 100));
+  ctx.font = `600 ${size}px system-ui, "Segoe UI", sans-serif`;
+  ctx.textBaseline = 'middle';
+  const col = w.position % 3;
+  const row = Math.floor(w.position / 3);
+  ctx.textAlign = col === 0 ? 'left' : col === 1 ? 'center' : 'right';
+  const x = col === 0 ? margin : col === 1 ? canvas.width / 2 : canvas.width - margin;
+  const y = row === 0 ? margin + size / 2 : row === 1 ? canvas.height / 2 : canvas.height - margin - size / 2;
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = size * 0.15;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, x, y);
+  ctx.restore();
 }
 
 function hasAlpha(img: ImageData): boolean {
@@ -83,38 +116,77 @@ function flatten(img: ImageData): ImageData {
   return img;
 }
 
-async function convert(req: WorkerRequest) {
-  const { options } = req;
-  let img = await decode(req.buffer, req.mime, req.name);
-  const alpha = hasAlpha(img);
-  const size = fitSize(img.width, img.height, options);
-  img = resize(img, size.width, size.height);
-
-  const p = codecParams(options.format, options.preset);
-  let out: ArrayBuffer;
-  switch (options.format) {
+async function encodeOnce(img: ImageData, o: ConvertOptions, quality: number, lossless: boolean, pngLevel: number): Promise<ArrayBuffer> {
+  switch (o.format) {
     case 'webp':
-      out = await encodeWebp(img, {
-        quality: p.quality,
-        lossless: p.lossless ? 1 : 0,
+      return encodeWebp(img, {
+        quality,
+        lossless: lossless ? 1 : 0,
         // exact=1 conserva el RGB bajo los píxeles transparentes en modo lossless
-        exact: p.lossless ? 1 : 0,
+        exact: lossless ? 1 : 0,
         method: 5,
       });
-      break;
     case 'avif':
-      out = await encodeAvif(img, { quality: p.quality, lossless: p.lossless, speed: 6 });
-      break;
+      return encodeAvif(img, { quality, lossless, speed: 6 });
     case 'jpeg':
-      out = await encodeJpeg(alpha ? flatten(img) : img, { quality: p.quality, progressive: true });
-      break;
+      return encodeJpeg(img, { quality, progressive: true });
     case 'png': {
       const raw = await encodePng(img);
-      out = await optimise(raw, { level: p.pngLevel, interlace: false, optimiseAlpha: true });
-      break;
+      return optimise(raw, { level: pngLevel, interlace: false, optimiseAlpha: true });
     }
   }
-  return { buffer: out, width: img.width, height: img.height, hasAlpha: alpha };
+}
+
+async function encode(img: ImageData, o: ConvertOptions): Promise<{ buffer: ArrayBuffer; targetMissed: boolean }> {
+  const p = codecParams(o.format, o.preset);
+  const targetBytes = o.targetKB * 1024;
+
+  if (targetBytes > 0 && o.format !== 'png') {
+    // Búsqueda binaria de la mayor calidad que cabe en el peso objetivo.
+    let best: ArrayBuffer | null = null;
+    let lo = 5;
+    let hi = 95;
+    const top = await encodeOnce(img, o, hi, false, p.pngLevel);
+    if (top.byteLength <= targetBytes) return { buffer: top, targetMissed: false };
+    for (let i = 0; i < 6 && lo <= hi; i++) {
+      const mid = Math.floor((lo + hi) / 2);
+      const out = await encodeOnce(img, o, mid, false, p.pngLevel);
+      if (out.byteLength <= targetBytes) {
+        best = out;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (best) return { buffer: best, targetMissed: false };
+    return { buffer: await encodeOnce(img, o, 5, false, p.pngLevel), targetMissed: true };
+  }
+
+  return { buffer: await encodeOnce(img, o, p.quality, p.lossless, p.pngLevel), targetMissed: false };
+}
+
+async function convert(req: WorkerRequest) {
+  const { options: o } = req;
+  const decoded = await decode(req.buffer, req.mime, req.name);
+  const oriented = orient(decoded, o.rotate, o.flipH, o.flipV);
+  const alpha = hasAlpha(oriented.getContext('2d')!.getImageData(0, 0, oriented.width, oriented.height));
+
+  // Varias versiones (srcset): sólo anchos menores que el original; si no hay ninguno, una sola salida.
+  const widths = [...new Set(o.sizes)].filter((w) => w > 0 && w < oriented.width).sort((a, b) => b - a);
+  const plans: ResizePlan[] = widths.length
+    ? widths.map((w) => planResize(oriented.width, oriented.height, { ...o.resize, mode: 'inside', width: w, height: 0 }))
+    : [planResize(oriented.width, oriented.height, o.resize)];
+
+  const outputs: Output[] = [];
+  for (const plan of plans) {
+    const canvas = render(oriented, plan, o.resize.background);
+    if (o.watermark) drawWatermark(canvas, o.watermark);
+    let img = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+    if (o.format === 'jpeg' && alpha) img = flatten(img);
+    const { buffer, targetMissed } = await encode(img, o);
+    outputs.push({ buffer, width: canvas.width, height: canvas.height, targetMissed });
+  }
+  return { outputs, hasAlpha: alpha };
 }
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -124,7 +196,10 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   try {
     const r = await convert(req);
     const res: WorkerResponse = { id: req.id, ok: true, ...r };
-    ctx.postMessage(res, [r.buffer]);
+    ctx.postMessage(
+      res,
+      r.outputs.map((o) => o.buffer),
+    );
   } catch (err) {
     const res: WorkerResponse = { id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) };
     ctx.postMessage(res);
