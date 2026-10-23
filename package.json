@@ -1,0 +1,52 @@
+{
+  "name": "webp-compressor",
+  "productName": "WebP Compressor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Compresor y conversor de imágenes por lotes (WebP, AVIF, JPEG, PNG). 100% local, web y escritorio.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "node node_modules/vite/bin/vite.js",
+    "build": "node node_modules/typescript/bin/tsc --noEmit && node node_modules/vite/bin/vite.js build",
+    "preview": "node node_modules/vite/bin/vite.js preview",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:start": "node scripts/electron-start.mjs",
+    "electron:build": "node node_modules/electron-builder/cli.js"
+  },
+  "build": {
+    "appId": "com.wituin.webpcompressor",
+    "productName": "WebP Compressor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "5.9",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@jsquash/avif": "^2.1.1",
+    "@jsquash/jpeg": "^1.6.0",
+    "@jsquash/oxipng": "^2.3.0",
+    "@jsquash/png": "^3.1.1",
+    "@jsquash/webp": "^1.5.0",
+    "heic-to": "^1.6.6",
+    "jszip": "^3.10.2",
+    "utif2": "^4.1.0"
+  }
+}
