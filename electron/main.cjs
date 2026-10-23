@@ -1,7 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, protocol, shell, session } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const video = require('./video.cjs');
 
 const isDev = process.env.ELECTRON_DEV === '1';
 const DIST = path.join(__dirname, '..', 'dist');
@@ -124,6 +124,38 @@ ipcMain.handle('output:write', async (_event, relPath, data) => {
   await fs.writeFile(finalPath, data, { flag: 'wx' });
   return path.relative(outputRoot, finalPath).split(path.sep).join('/');
 });
+
+/** Ruta de salida segura y sin colisiones dentro de la carpeta elegida. */
+async function resolveOutput(relPath) {
+  if (!outputRoot) throw new Error('No hay carpeta de destino elegida');
+  if (typeof relPath !== 'string') throw new Error('Petición inválida');
+  const target = path.resolve(outputRoot, ...relPath.split('/'));
+  if (!target.startsWith(path.resolve(outputRoot) + path.sep)) throw new Error('Ruta fuera de la carpeta de destino');
+  const dir = path.dirname(target);
+  await fs.mkdir(dir, { recursive: true });
+  const name = await uniqueName(dir, path.basename(target), written);
+  const finalPath = path.join(dir, name);
+  written.add(finalPath);
+  return finalPath;
+}
+
+ipcMain.handle('video:run', async (event, req) => {
+  const { id, inputPath, relOut, options } = req ?? {};
+  if (typeof inputPath !== 'string' || !path.isAbsolute(inputPath)) throw new Error('Ruta de entrada inválida');
+  if (!(await fs.stat(inputPath)).isFile()) throw new Error('La entrada no es un archivo');
+  if (typeof relOut !== 'string' || !video.isAllowedOutput(relOut)) throw new Error('Extensión de salida no permitida');
+  const outputPath = await resolveOutput(relOut);
+  const size = await video.run({
+    id,
+    inputPath,
+    outputPath,
+    options,
+    onProgress: (ratio) => event.sender.send('video:progress', { id, ratio }),
+  });
+  return { relPath: path.relative(outputRoot, outputPath).split(path.sep).join('/'), size };
+});
+
+ipcMain.handle('video:cancel', (_event, id) => video.cancel(id));
 
 ipcMain.handle('output:open', async () => {
   if (outputRoot) await shell.openPath(outputRoot);

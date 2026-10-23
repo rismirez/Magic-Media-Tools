@@ -1,0 +1,212 @@
+import {
+  ALL_FORMATS,
+  BlobSource,
+  BufferTarget,
+  Conversion,
+  Input,
+  Mp4OutputFormat,
+  Output,
+  QUALITY_HIGH,
+  QUALITY_LOW,
+  QUALITY_MEDIUM,
+  WebMOutputFormat,
+  getEncodableVideoCodecs,
+  type VideoCodec,
+} from 'mediabunny';
+
+export type VideoKind = 'video' | 'gif' | 'webp' | 'frame';
+export type VideoFormat = 'mp4-h264' | 'mp4-h265' | 'webm-vp9' | 'webm-av1';
+export type VideoQuality = 'high' | 'balanced' | 'small';
+export type FrameFormat = 'jpeg' | 'png' | 'webp';
+
+export interface VideoOptions {
+  kind: VideoKind;
+  format: VideoFormat;
+  quality: VideoQuality;
+  /** Peso máximo aproximado en MB (0 = desactivado). */
+  targetMB: number;
+  /** 0 = original. Nunca se amplía. */
+  maxHeight: number;
+  /** 0 = original. */
+  maxFps: number;
+  audio: 'keep' | 'drop';
+  /** 0 = automático. */
+  audioKbps: number;
+  /** Segundos. end = 0 → hasta el final. */
+  start: number;
+  end: number;
+  animWidth: number;
+  animFps: number;
+  frameTime: number;
+  frameFormat: FrameFormat;
+}
+
+export const defaultVideoOptions: VideoOptions = {
+  kind: 'video',
+  format: 'mp4-h264',
+  quality: 'balanced',
+  targetMB: 0,
+  maxHeight: 0,
+  maxFps: 0,
+  audio: 'keep',
+  audioKbps: 0,
+  start: 0,
+  end: 0,
+  animWidth: 480,
+  animFps: 12,
+  frameTime: 0,
+  frameFormat: 'jpeg',
+};
+
+const VIDEO_EXTS = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'mts', 'm2ts', '3gp', 'ogv'];
+export const VIDEO_ACCEPT = VIDEO_EXTS.map((e) => `.${e}`).join(',');
+export const isVideoFile = (name: string) => VIDEO_EXTS.includes(name.slice(name.lastIndexOf('.') + 1).toLowerCase());
+
+export function outputExt(o: VideoOptions): string {
+  if (o.kind === 'gif') return 'gif';
+  if (o.kind === 'webp') return 'webp';
+  if (o.kind === 'frame') return o.frameFormat === 'jpeg' ? 'jpg' : o.frameFormat;
+  return o.format.startsWith('mp4') ? 'mp4' : 'webm';
+}
+
+// ---------- navegador (WebCodecs vía mediabunny) ----------
+
+const CODEC: Record<VideoFormat, VideoCodec> = {
+  'mp4-h264': 'avc',
+  'mp4-h265': 'hevc',
+  'webm-vp9': 'vp9',
+  'webm-av1': 'av1',
+};
+
+/** Formatos que este navegador puede codificar. */
+export async function supportedWebFormats(): Promise<VideoFormat[]> {
+  try {
+    const ok = new Set(await getEncodableVideoCodecs());
+    return (Object.keys(CODEC) as VideoFormat[]).filter((f) => ok.has(CODEC[f]));
+  } catch {
+    return [];
+  }
+}
+
+export interface WebHandle {
+  cancel?: () => Promise<void>;
+}
+
+/** Convierte en el navegador. Devuelve el archivo resultante en memoria. */
+export async function convertVideoWeb(
+  file: File,
+  o: VideoOptions,
+  onProgress: (ratio: number) => void,
+  handle: WebHandle,
+): Promise<ArrayBuffer> {
+  const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+  const isMp4 = o.format.startsWith('mp4');
+  const target = new BufferTarget();
+  const output = new Output({ format: isMp4 ? new Mp4OutputFormat() : new WebMOutputFormat(), target });
+
+  const track = await input.getPrimaryVideoTrack();
+  if (!track) throw new Error('El archivo no contiene vídeo');
+  const total = await input.computeDuration();
+  const length = Math.max(0.1, (o.end > o.start ? Math.min(o.end, total) : total) - o.start);
+
+  const audioBps = o.audio === 'keep' ? (o.audioKbps || 128) * 1000 : 0;
+  const quality = { high: QUALITY_HIGH, balanced: QUALITY_MEDIUM, small: QUALITY_LOW }[o.quality];
+  const bitrate = o.targetMB > 0 ? Math.max(80_000, Math.floor((o.targetMB * 8 * 1024 * 1024) / length - audioBps)) : undefined;
+
+  const video: Record<string, unknown> = { codec: CODEC[o.format], ...(bitrate ? { bitrate } : { quality }) };
+  if (o.maxHeight > 0 && track.displayHeight > o.maxHeight) {
+    video.height = Math.max(2, Math.round(o.maxHeight / 2) * 2);
+  }
+  if (o.maxFps > 0) {
+    const stats = await track.computePacketStats(120);
+    if (!stats.averagePacketRate || stats.averagePacketRate > o.maxFps + 0.5) video.frameRate = o.maxFps;
+  }
+
+  const audio: Record<string, unknown> =
+    o.audio === 'drop' ? { discard: true } : { codec: isMp4 ? 'aac' : 'opus', ...(o.audioKbps ? { bitrate: o.audioKbps * 1000 } : {}) };
+
+  const conversion = await Conversion.init({
+    input,
+    output,
+    video,
+    audio,
+    trim: o.start > 0 || o.end > 0 ? { start: o.start || undefined, end: o.end > o.start ? o.end : undefined } : undefined,
+  });
+  if (!conversion.isValid) {
+    throw new Error('Este navegador no puede convertir ese archivo (códec no compatible). Prueba la app de escritorio.');
+  }
+  conversion.onProgress = (p) => onProgress(p);
+  handle.cancel = () => conversion.cancel();
+  await conversion.execute();
+  if (!target.buffer) throw new Error('No se generó ningún resultado');
+  return target.buffer;
+}
+
+// ---------- fotograma (navegador) ----------
+
+export async function extractFrameWeb(file: File, time: number, format: FrameFormat, maxHeight: number): Promise<ArrayBuffer> {
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.preload = 'auto';
+    video.src = url;
+    await once(video, 'loadeddata', 'No se pudo leer el vídeo en este navegador');
+    video.currentTime = Math.min(Math.max(0, time), Math.max(0, video.duration - 0.05));
+    await once(video, 'seeked', 'No se pudo buscar el fotograma');
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    if (maxHeight > 0 && h > maxHeight) {
+      w = Math.round((w * maxHeight) / h);
+      h = maxHeight;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d')!.drawImage(video, 0, 0, w, h);
+    const mime = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[format];
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, mime, 0.92));
+    if (!blob) throw new Error('No se pudo generar la imagen');
+    return await blob.arrayBuffer();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function once(el: HTMLVideoElement, event: string, errorMessage: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(errorMessage)), 15_000);
+    el.addEventListener(
+      event,
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+    el.addEventListener(
+      'error',
+      () => {
+        clearTimeout(timer);
+        reject(new Error(errorMessage));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Duración en segundos leyendo sólo los metadatos (0 si el navegador no puede). */
+export function probeDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    const done = (d: number) => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(d) ? d : 0);
+    };
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => done(v.duration);
+    v.onerror = () => done(0);
+    v.src = url;
+  });
+}
