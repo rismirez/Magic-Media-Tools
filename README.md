@@ -1,19 +1,32 @@
 # Media Compressor
 
-Conversor y compresor de imágenes por lotes, 100 % local (nada se sube a servidores). Mismo código para **web** (Vite + TypeScript) y **escritorio** (Electron).
+Conversor y compresor de **imágenes y vídeos** por lotes, 100 % local (nada se sube a servidores). Mismo código para **web** (Vite + TypeScript, sin framework) y **escritorio** (Electron). Interfaz en español e inglés, tema claro/oscuro.
 
 Basado en el análisis de *Image Compressor & WebP Converter*: cola por lotes, 4 perfiles de calidad, redimensionado con proporción, canal alfa y guardado no destructivo.
 
-## Funciones
+## Imagen
 
-- Entrada: WebP, AVIF, JPEG, PNG, HEIC/HEIF, TIFF (también GIF/BMP); archivos, carpetas y arrastrar y soltar.
-- Salida: WebP, AVIF, JPEG, PNG.
-- Perfiles: Mantener calidad original · Optimización sin pérdida · Equilibrado · Más pequeño.
-- Redimensionado por ancho/alto máximo (sin deformar, sin ampliar).
-- Transparencia conservada en WebP/AVIF/PNG (JPEG se rellena de blanco).
-- No destructivo: los originales no se tocan y nunca se sobrescribe (se añade `-1`, `-2`…).
-- Destino: carpeta (File System Access API / diálogo nativo en Electron) o ZIP.
+- Entrada: WebP, AVIF, JPEG, PNG, HEIC/HEIF, TIFF (también GIF/BMP); archivos, carpetas, arrastrar y soltar y pegar del portapapeles.
+- Salida: WebP, AVIF, JPEG, PNG. Perfiles: Mantener calidad · Sin pérdida · Equilibrado · Más pequeño.
+- **Peso máximo (KB):** busca la mayor calidad que cabe.
+- **Tamaño:** original · reducir (sin ampliar) · **recortar** (cover, con selector de posición 3×3 y vista previa) · **encajar** (contain, con relleno).
+- Varias versiones por imagen (anchos para `srcset`), rotar/voltear, marca de agua de texto, plantilla de nombre (`{nombre}`, `{ancho}`, `{alto}`, `{formato}`).
+- Comparador antes/después, ajustes guardados con nombre, ETA.
+- Transparencia conservada (JPEG se rellena de blanco). EXIF: se aplica la orientación y no se copian metadatos.
 - Códecs WASM (`@jsquash/*`) en Web Workers; HEIC con `heic-to`, TIFF con `utif2`.
+
+## Vídeo
+
+- MP4 (H.264 / H.265) y WebM (VP9 / AV1), con perfiles de calidad, peso máximo (MB), resolución y FPS máximos, audio (mantener/quitar y calidad) y recorte de fragmento.
+- Extraer un fotograma (JPEG/PNG/WebP).
+- **Escritorio:** ffmpeg incluido (rápido, todos los códecs) y además GIF animado y WebP animado.
+- **Web:** WebCodecs vía [mediabunny](https://mediabunny.dev); sólo se ofrecen los formatos que tu navegador puede codificar. El resultado se genera en memoria, así que con vídeos muy grandes es mejor la app de escritorio.
+
+## Comunes
+
+- No destructivo: los originales no se tocan y nunca se sobrescribe (se añade `-1`, `-2`…). El destino se pregunta en cada conversión (carpeta, o ZIP en la web).
+- Idioma (ES/EN) y tema en la cabecera. Cambiar de idioma recarga la interfaz.
+- Escritorio: búsqueda de actualizaciones en GitHub Releases (sólo instalador; no en portable).
 
 ## Uso
 
@@ -32,13 +45,16 @@ Si `npm install` no descarga el binario de Electron (scripts de instalación blo
 
 ## Estructura
 
-- `src/engine/` — worker de conversión, pool, perfiles de calidad, lectura de entradas.
+- `src/engine/` — worker de imagen, pool, perfiles, geometría de recorte (compartida con la vista previa), vídeo web.
+- `src/tabs/` — pestañas de imagen y vídeo. `src/ui/` — piezas reutilizables (cuadrícula 3×3, vista previa, comparador).
 - `src/platform/sinks.ts` — destinos de salida (carpeta, ZIP, Electron).
-- `src/i18n/` — textos (de momento sólo español; para inglés, añadir `en.ts`).
-- `electron/` — proceso principal (protocolo `app://`, CSP, escritura restringida a la carpeta elegida) y preload.
+- `src/i18n/` — textos `es.ts` (base) y `en.ts` (mismo tipo: el compilador avisa de claves que falten).
+- `electron/` — proceso principal (protocolo `app://`, CSP, escritura restringida a la carpeta elegida), preload y `video.cjs` (ffmpeg con opciones validadas).
 
 ## Limitaciones conocidas
 
-- JPEG no tiene modo sin pérdida real: «sin pérdida» usa calidad 100.
-- PNG es siempre sin pérdida (sin cuantización a paleta).
-- El PDF indica HEIC solo de lectura; aquí también es solo de entrada.
+- JPEG no tiene modo sin pérdida real: «sin pérdida» usa calidad 100. PNG es siempre sin pérdida (sin cuantización a paleta).
+- Las imágenes animadas (GIF/WebP) se procesan como imagen fija (primer fotograma); para animaciones usa la pestaña de vídeo.
+- El peso máximo de vídeo es aproximado (tasa de bits constante, una pasada).
+- Las actualizaciones automáticas requieren publicar los instaladores como *release* en GitHub.
+- Los ejecutables no están firmados: Windows SmartScreen puede avisar.

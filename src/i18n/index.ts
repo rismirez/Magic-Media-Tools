@@ -1,16 +1,40 @@
 import { es, type Dict } from './es';
+import { en } from './en';
 
-// Para añadir inglés: crear ./en.ts (export const en: Dict = {...}) y registrarlo aquí.
-const dicts: Record<string, Dict> = { es };
-let current = 'es';
+export const LANGS = { es: 'Español', en: 'English' } as const;
+export type Lang = keyof typeof LANGS;
+
+const dicts: Record<Lang, Dict> = { es, en };
+const LANG_KEY = 'media-compressor:lang';
+
+function initialLang(): Lang {
+  try {
+    const stored = localStorage.getItem(LANG_KEY);
+    if (stored === 'es' || stored === 'en') return stored;
+  } catch {
+    /* almacenamiento no disponible */
+  }
+  return 'es';
+}
+
+let current: Lang = initialLang();
 
 export type Key = keyof Dict;
 
-export function setLang(lang: string) {
-  if (dicts[lang]) current = lang;
+export const getLang = () => current;
+
+/** Guarda el idioma; la interfaz se recarga para aplicarlo. */
+export function setLang(lang: Lang) {
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    /* se aplicará sólo hasta cerrar la app */
+  }
+  current = lang;
 }
 
 export function t(key: Key, vars: Record<string, string | number> = {}): string {
   const text = dicts[current][key] ?? es[key];
-  return text.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+  // Sólo se sustituyen las variables recibidas: otros {…} (p. ej. plantillas de nombre) se dejan tal cual.
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }

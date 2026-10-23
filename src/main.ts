@@ -1,11 +1,32 @@
 import './style.css';
-import { t } from './i18n';
+import { LANGS, getLang, setLang, t, type Lang } from './i18n';
 import { mountImageTab } from './tabs/image';
 import { mountVideoTab } from './tabs/video';
 
 type TabId = 'image' | 'video';
 
 const TAB_KEY = 'media-compressor:tab';
+
+const THEME_KEY = 'media-compressor:theme';
+type Theme = 'auto' | 'light' | 'dark';
+
+function applyTheme(theme: Theme) {
+  if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.dataset.theme = theme;
+}
+
+function storedTheme(): Theme {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (v === 'light' || v === 'dark') return v;
+  } catch {
+    /* se usa el tema del sistema */
+  }
+  return 'auto';
+}
+
+applyTheme(storedTheme());
+document.documentElement.lang = getLang();
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -15,6 +36,14 @@ app.innerHTML = `
     <div class="titles">
       <h1>${t('appTitle')}</h1>
       <p>${t('appTagline')}</p>
+    </div>
+    <div class="top-tools">
+      <select id="sel-lang" aria-label="${t('language')}">
+        ${(Object.keys(LANGS) as Lang[]).map((l) => `<option value="${l}"${l === getLang() ? ' selected' : ''}>${LANGS[l]}</option>`).join('')}
+      </select>
+      <select id="sel-theme" aria-label="${t('theme')}">
+        ${(['auto', 'light', 'dark'] as const).map((m) => `<option value="${m}">${t(`theme.${m}` as const)}</option>`).join('')}
+      </select>
     </div>
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" id="tab-image" data-tab="image">${t('tab.image')}</button>
@@ -34,6 +63,24 @@ const panels: Record<TabId, HTMLElement> = {
 
 mountImageTab(panels.image);
 mountVideoTab(panels.video);
+
+const selTheme = app.querySelector<HTMLSelectElement>('#sel-theme')!;
+selTheme.value = storedTheme();
+selTheme.addEventListener('change', () => {
+  const theme = selTheme.value as Theme;
+  applyTheme(theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    /* se aplica sólo en esta sesión */
+  }
+});
+
+// Cambiar de idioma recarga la interfaz (los ajustes y la cola se pierden; los ajustes se conservan guardados).
+app.querySelector<HTMLSelectElement>('#sel-lang')!.addEventListener('change', (e) => {
+  setLang((e.target as HTMLSelectElement).value as Lang);
+  location.reload();
+});
 
 function select(tab: TabId) {
   for (const id of Object.keys(panels) as TabId[]) {

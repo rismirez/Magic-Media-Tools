@@ -640,12 +640,13 @@ export function mountImageTab(app: HTMLElement) {
   function outputName(relPath: string, width: number, height: number, multi: boolean): string {
     const { dir, stem } = splitPath(relPath);
     let tpl = settings.template.trim() || '{nombre}';
-    if (multi && !tpl.includes('{ancho}')) tpl += '-{ancho}w';
+    if (multi && !/\{(ancho|width)\}/.test(tpl)) tpl += '-{ancho}w';
+    // Se aceptan las variables en español y en inglés.
     const name = tpl
-      .replace(/\{nombre\}/g, stem)
-      .replace(/\{ancho\}/g, String(width))
-      .replace(/\{alto\}/g, String(height))
-      .replace(/\{formato\}/g, settings.format);
+      .replace(/\{(nombre|name)\}/g, stem)
+      .replace(/\{(ancho|width)\}/g, String(width))
+      .replace(/\{(alto|height)\}/g, String(height))
+      .replace(/\{(formato|format)\}/g, settings.format);
     return `${dir}${safeName(name)}.${EXTENSIONS[settings.format]}`;
   }
 

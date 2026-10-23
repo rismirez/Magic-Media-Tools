@@ -28,6 +28,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "worker-src 'self' blob:",
+  "media-src 'self' blob:",
   "connect-src 'self' blob: data:",
 ].join('; ');
 
@@ -98,6 +99,12 @@ function uniqueName(dir, name, taken) {
 const written = new Set();
 
 ipcMain.handle('output:choose', async (event) => {
+  // Gancho sólo para pruebas automáticas (nunca en la app empaquetada).
+  if (!app.isPackaged && process.env.MC_TEST_OUTPUT_DIR) {
+    outputRoot = process.env.MC_TEST_OUTPUT_DIR;
+    written.clear();
+    return outputRoot;
+  }
   const win = BrowserWindow.fromWebContents(event.sender);
   const res = await dialog.showOpenDialog(win, {
     properties: ['openDirectory', 'createDirectory'],
@@ -161,11 +168,24 @@ ipcMain.handle('output:open', async () => {
   if (outputRoot) await shell.openPath(outputRoot);
 });
 
+/** Busca actualizaciones en GitHub Releases (sólo instalada, no portable ni en desarrollo). Si falla, se ignora. */
+function checkForUpdates() {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_FILE) return;
+  try {
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.on('error', () => {});
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  } catch {
+    /* sin actualizaciones automáticas */
+  }
+}
+
 app.whenReady().then(() => {
   if (!isDev) registerAppProtocol();
   // Sin permisos especiales (cámara, geolocalización, etc.).
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   createWindow();
+  checkForUpdates();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
