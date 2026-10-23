@@ -348,6 +348,7 @@ progress {
   margin: 10px 0 0;
   color: var(--muted);
   white-space: pre-line;
+  overflow-wrap: anywhere; /* rutas largas sin espacios: que salten de línea en vez de salirse */
 }
 
 [hidden] {

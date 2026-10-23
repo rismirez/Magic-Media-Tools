@@ -269,7 +269,7 @@ function render() {
     .join('');
 
   const convertible = items.filter((i) => i.status !== 'skipped');
-  const hasWork = convertible.some((i) => i.status === 'pending' || i.status === 'error');
+  const hasWork = convertible.length > 0;
   emptyMsg.hidden = items.length > 0;
   btnClear.hidden = items.length === 0 || running;
   btnConvert.disabled = running || !hasWork;
@@ -344,9 +344,11 @@ window.addEventListener('drop', (e) => e.preventDefault());
 // ---------- conversión ----------
 
 async function convertAll() {
-  const todo = items.filter((i) => i.status === 'pending' || i.status === 'error');
+  // Se puede volver a convertir la misma cola (otro destino, formato o ajustes): se reprocesa todo.
+  const todo = items.filter((i) => i.status !== 'skipped');
   if (!todo.length || running) return;
 
+  // Siempre se pregunta el destino (carpeta o ZIP) en cada conversión.
   let sink;
   try {
     sink = await createSink(settings.dest);

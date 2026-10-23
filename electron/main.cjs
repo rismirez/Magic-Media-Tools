@@ -61,6 +61,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 560,
     title: 'WebP Compressor',
+    icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
