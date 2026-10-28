@@ -1,7 +1,7 @@
 import type { Dict } from './es';
 
 export const en: Dict = {
-  appTitle: 'Media Compressor',
+  appTitle: 'Magic Media Tools',
   appTagline: 'Convert and compress images and videos in bulk. Everything happens on your computer: nothing is uploaded to any server.',
   'tab.image': 'Image',
   'tab.video': 'Video',

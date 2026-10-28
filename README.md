@@ -1,4 +1,4 @@
-# Media Compressor
+# Magic Media Tools
 
 Conversor y compresor de **imágenes y vídeos** por lotes, 100 % local (nada se sube a servidores). Mismo código para **web** (Vite + TypeScript, sin framework) y **escritorio** (Electron). Interfaz en español e inglés, tema claro/oscuro.
 

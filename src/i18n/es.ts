@@ -1,6 +1,6 @@
 /** Diccionario base. El resto de idiomas deben cumplir el mismo tipo (ver ./index.ts). */
 export const es = {
-  appTitle: 'Media Compressor',
+  appTitle: 'Magic Media Tools',
   appTagline: 'Convierte y comprime imágenes y vídeos por lotes. Todo ocurre en tu equipo: nada se sube a ningún servidor.',
   'tab.image': 'Imagen',
   'tab.video': 'Vídeo',

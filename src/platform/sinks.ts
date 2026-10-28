@@ -73,7 +73,7 @@ class ZipSink implements Sink {
   private used = new Set<string>();
   readonly label: string;
   constructor() {
-    this.label = `media-compressor-${new Date().toISOString().slice(0, 10)}.zip`;
+    this.label = `magic-media-tools-${new Date().toISOString().slice(0, 10)}.zip`;
   }
   async write(relPath: string, data: Uint8Array) {
     let path = relPath;
