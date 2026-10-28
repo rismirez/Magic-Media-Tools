@@ -8,7 +8,8 @@ import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform
 import { anchorGrid } from '../ui/anchorGrid';
 import { drawCropPreview } from '../ui/cropPreview';
 import { openCompare } from '../ui/compare';
-import { iconCompare, iconImageAdd, iconSpinner, iconWand } from '../ui/icons';
+import { ico, iconImageAdd } from '../ui/icons';
+import { isVideoFile } from '../engine/video';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
@@ -105,7 +106,16 @@ function load(): Settings {
   }
 }
 
-export function mountImageTab(app: HTMLElement) {
+export interface TabOptions {
+  /** Archivos que son de la otra pestaña. `only`: no había ninguno de esta, así que conviene cambiar de pestaña. */
+  foreign?: (sources: Source[], only: boolean) => void;
+}
+
+const PRESET_ICON: Record<string, string> = { keep: 'gem', lossless: 'badge-check', balanced: 'gauge', smallest: 'feather' };
+const MODE_ICON: Record<string, string> = { none: 'scan', inside: 'shrink', cover: 'crop', contain: 'expand' };
+const FORMAT_ICON: Record<string, string> = { webp: 'image', avif: 'sparkles', jpeg: 'camera', png: 'layers' };
+
+export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const settings = load();
   const saveSettings = () => {
     try {
@@ -129,12 +139,13 @@ export function mountImageTab(app: HTMLElement) {
     <div class="layout">
       <section class="panel">
         <div id="drop" class="drop" tabindex="0">
+          <svg class="drop-border" aria-hidden="true"><rect /></svg>
           <div class="drop-icon">${iconImageAdd}</div>
           <strong>${esc(t('dropTitle'))}</strong>
           <span>${esc(t('dropHint'))}</span>
           <div class="row">
-            <button type="button" id="btn-files" class="btn">${esc(t('addFiles'))}</button>
-            <button type="button" id="btn-folder" class="btn">${esc(t('addFolder'))}</button>
+            <button type="button" id="btn-files" class="btn main">${ico('image-plus')}${esc(t('addFiles'))}</button>
+            <button type="button" id="btn-folder" class="btn">${ico('folder-plus')}${esc(t('addFolder'))}</button>
           </div>
           <small>${esc(t('pasteHint'))}</small>
         </div>
@@ -142,8 +153,8 @@ export function mountImageTab(app: HTMLElement) {
         <input id="in-folder" type="file" multiple hidden webkitdirectory />
 
         <div class="queue-head">
-          <h2>${esc(t('queue'))}</h2>
-          <button type="button" id="btn-clear" class="link">${esc(t('clear'))}</button>
+          <h2>${ico('list')}${esc(t('queue'))}</h2>
+          <button type="button" id="btn-clear" class="link">${ico('trash', 16)}${esc(t('clear'))}</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -154,7 +165,7 @@ export function mountImageTab(app: HTMLElement) {
                 <th class="num">${esc(t('colResult'))}</th>
                 <th class="num">${esc(t('colSaved'))}</th>
                 <th>${esc(t('colStatus'))}</th>
-                <th></th>
+                <th>${esc(t('compareCol'))}</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -164,36 +175,36 @@ export function mountImageTab(app: HTMLElement) {
       </section>
 
       <aside class="panel settings">
-        <h2>${esc(t('settings'))}</h2>
+        <h2>${ico('settings', 20)}${esc(t('settings'))}</h2>
 
         <fieldset>
-          <legend>${esc(t('saved'))}</legend>
+          <legend>${ico('bookmark')}${esc(t('saved'))}</legend>
           <div class="row nowrap">
             <select id="saved-sel" aria-label="${esc(t('saved'))}"></select>
-            <button type="button" class="btn" id="saved-del" title="${esc(t('savedDelete'))}" aria-label="${esc(t('savedDelete'))}">🗑</button>
+            <button type="button" class="btn" id="saved-del" title="${esc(t('savedDelete'))}" aria-label="${esc(t('savedDelete'))}">${ico('trash', 16)}</button>
           </div>
           <div class="row nowrap saved-new">
             <input id="saved-name" type="text" maxlength="40" placeholder="${esc(t('savedNamePh'))}" />
-            <button type="button" class="btn" id="saved-save">${esc(t('savedSave'))}</button>
+            <button type="button" class="btn" id="saved-save">${ico('save', 16)}${esc(t('savedSave'))}</button>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>${esc(t('format'))}</legend>
+          <legend>${ico('file-image')}${esc(t('format'))}</legend>
           <div class="seg">
-            ${FORMATS.map((f) => `<label><input type="radio" name="format" data-bind="format" value="${f.id}" /><span>${f.label}</span></label>`).join('')}
+            ${FORMATS.map((f) => `<label><input type="radio" name="format" data-bind="format" value="${f.id}" /><span>${ico(FORMAT_ICON[f.id], 16)}${f.label}</span></label>`).join('')}
           </div>
           <p id="format-note" class="note"></p>
         </fieldset>
 
         <fieldset>
-          <legend>${esc(t('quality'))}</legend>
+          <legend>${ico('gauge')}${esc(t('quality'))}</legend>
           <div class="presets">
             ${PRESET_ORDER.map(
               (p) => `
               <label class="preset">
                 <input type="radio" name="preset" data-bind="preset" value="${p}" />
-                <span><b>${esc(t(`preset.${p}.name` as Key))}</b><small>${esc(t(`preset.${p}.desc` as Key))}</small></span>
+                <span>${ico(PRESET_ICON[p], 22)}<span class="pr-txt"><b>${esc(t(`preset.${p}.name` as Key))}</b><small>${esc(t(`preset.${p}.desc` as Key))}</small></span></span>
               </label>`,
             ).join('')}
           </div>
@@ -204,9 +215,9 @@ export function mountImageTab(app: HTMLElement) {
         </fieldset>
 
         <fieldset>
-          <legend>${esc(t('resize'))}</legend>
+          <legend>${ico('ruler')}${esc(t('resize'))}</legend>
           <div class="seg seg-wrap">
-            ${MODES.map((m) => `<label><input type="radio" name="mode" data-bind="resize.mode" value="${m}" /><span>${esc(t(`mode.${m}` as Key))}</span></label>`).join('')}
+            ${MODES.map((m) => `<label><input type="radio" name="mode" data-bind="resize.mode" value="${m}" /><span>${ico(MODE_ICON[m], 16)}${esc(t(`mode.${m}` as Key))}</span></label>`).join('')}
           </div>
           <p id="mode-note" class="note"></p>
           <div id="dims" class="row">
@@ -239,10 +250,10 @@ export function mountImageTab(app: HTMLElement) {
           <div class="tf-bar">
             <span class="mini">${esc(t('transform'))}</span>
             <div class="row">
-              <button type="button" class="btn" data-act="rot-l" title="${esc(t('rotateLeft'))}" aria-label="${esc(t('rotateLeft'))}">↺</button>
-              <button type="button" class="btn" data-act="rot-r" title="${esc(t('rotateRight'))}" aria-label="${esc(t('rotateRight'))}">↻</button>
-              <button type="button" class="btn" data-act="flip-h" title="${esc(t('flipH'))}" aria-label="${esc(t('flipH'))}" aria-pressed="false">⇋</button>
-              <button type="button" class="btn" data-act="flip-v" title="${esc(t('flipV'))}" aria-label="${esc(t('flipV'))}" aria-pressed="false">⇅</button>
+              <button type="button" class="btn" data-act="rot-l" title="${esc(t('rotateLeft'))}" aria-label="${esc(t('rotateLeft'))}">${ico('rotate-ccw', 18)}</button>
+              <button type="button" class="btn" data-act="rot-r" title="${esc(t('rotateRight'))}" aria-label="${esc(t('rotateRight'))}">${ico('rotate-cw', 18)}</button>
+              <button type="button" class="btn" data-act="flip-h" title="${esc(t('flipH'))}" aria-label="${esc(t('flipH'))}" aria-pressed="false">${ico('flip-h', 18)}</button>
+              <button type="button" class="btn" data-act="flip-v" title="${esc(t('flipV'))}" aria-label="${esc(t('flipV'))}" aria-pressed="false">${ico('flip-v', 18)}</button>
             </div>
           </div>
           <label id="bg-row" class="field inline">${esc(t('background'))}
@@ -260,16 +271,16 @@ export function mountImageTab(app: HTMLElement) {
         ${watermarkHtml('img', false)}
 
         <fieldset>
-          <legend>${esc(t('naming'))}</legend>
+          <legend>${ico('type')}${esc(t('naming'))}</legend>
           <input type="text" data-bind="template" data-type="text" maxlength="80" placeholder="{nombre}" />
           <p class="note">${esc(t('namingHint'))}</p>
         </fieldset>
 
         <fieldset id="dest-box">
-          <legend>${esc(t('destination'))}</legend>
+          <legend>${ico('folder-open')}${esc(t('destination'))}</legend>
           <div class="seg">
-            <label><input type="radio" name="dest" data-bind="dest" value="folder" /><span>${esc(t('destFolder'))}</span></label>
-            <label><input type="radio" name="dest" data-bind="dest" value="zip" /><span>${esc(t('destZip'))}</span></label>
+            <label><input type="radio" name="dest" data-bind="dest" value="folder" /><span>${ico('folder-open', 16)}${esc(t('destFolder'))}</span></label>
+            <label><input type="radio" name="dest" data-bind="dest" value="zip" /><span>${ico('package-open', 16)}${esc(t('destZip'))}</span></label>
           </div>
           <p class="note">${esc(t('destHint'))}</p>
         </fieldset>
@@ -279,8 +290,8 @@ export function mountImageTab(app: HTMLElement) {
           <progress id="progress" max="1" value="0" hidden></progress>
           <div class="actions">
             <button type="button" id="btn-convert" class="btn primary convert"></button>
-            <button type="button" id="btn-cancel" class="btn" hidden>${esc(t('cancel'))}</button>
-            <button type="button" id="btn-open" class="btn" hidden>${esc(t('openOutput'))}</button>
+            <button type="button" id="btn-cancel" class="btn" hidden>${ico('x', 16)}${esc(t('cancel'))}</button>
+            <button type="button" id="btn-open" class="btn" hidden>${ico('folder-open', 16)}${esc(t('openOutput'))}</button>
           </div>
         </div>
       </aside>
@@ -513,8 +524,13 @@ export function mountImageTab(app: HTMLElement) {
 
   // ---------- cola ----------
 
-  function addSources(sources: Source[]) {
+  function addSources(all: Source[]) {
     if (running) return;
+    // Los vídeos soltados aquí se mandan a la pestaña de vídeo.
+    const foreign = all.filter((s) => !isSupported(s.file.name) && isVideoFile(s.file.name));
+    const sources = foreign.length ? all.filter((s) => !foreign.includes(s)) : all;
+    if (foreign.length) tabOpts.foreign?.(foreign, sources.length === 0);
+    if (!sources.length) return;
     lastMessage = '';
     btnOpen.hidden = true;
     for (const src of sources) {
@@ -544,9 +560,9 @@ export function mountImageTab(app: HTMLElement) {
         const extra = i.outCount && i.outCount > 1 ? ` <small>(+${i.outCount - 1})</small>` : '';
         const viewable = i.status === 'done' || i.status === 'pending' || i.status === 'error';
         const compare = viewable
-          ? `<button type="button" class="view-btn" data-view title="${esc(t('compare'))}" aria-label="${esc(t('compare'))}">${iconCompare}<span>${esc(t('viewCompare'))}</span></button>`
+          ? `<button type="button" class="view-btn" data-view title="${esc(t('compare'))}" aria-label="${esc(t('compare'))}">${ico('compare', 16)}<span class="lbl">${esc(t('viewCompare'))}</span></button>`
           : '';
-        const remove = running ? '' : `<button type="button" class="x" data-rm aria-label="${esc(t('clickToRemove'))}">×</button>`;
+        const remove = running ? '' : `<button type="button" class="x" data-rm aria-label="${esc(t('clickToRemove'))}">${ico('x', 14)}</button>`;
         return `<tr data-s="${i.status}" data-id="${i.id}"${viewable ? ' class="clickable"' : ''}>
           <td class="name" title="${esc(i.src.relPath)}">${esc(i.src.relPath)}</td>
           <td class="num">${fmtBytes(i.inSize)}</td>
@@ -562,7 +578,7 @@ export function mountImageTab(app: HTMLElement) {
     emptyMsg.hidden = items.length > 0;
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
-    btnConvert.innerHTML = running ? `${iconSpinner}<span>${esc(t('converting'))}</span>` : `${iconWand}<span>${esc(t('convert'))}</span>`;
+    btnConvert.innerHTML = running ? `<span class="spin">${ico('loader', 20)}</span><span>${esc(t('converting'))}</span>` : `${ico('wand', 20)}<span>${esc(t('convert'))}</span>`;
     btnCancel.hidden = !running;
 
     const done = items.filter((i) => i.status === 'done');
@@ -819,4 +835,5 @@ export function mountImageTab(app: HTMLElement) {
   syncToDom();
   render();
   schedulePreview();
+  return { add: addSources };
 }

@@ -14,11 +14,12 @@ import {
   type VideoQuality,
   type WebHandle,
 } from '../engine/video';
-import { fromDrop, fromInput, type Source } from '../engine/input';
+import { fromDrop, fromInput, isSupported, type Source } from '../engine/input';
 import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform/sinks';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
-import { iconSpinner, iconVideoAdd, iconWand } from '../ui/icons';
+import { ico, iconVideoAdd } from '../ui/icons';
+import type { TabOptions } from './image';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
 import { watermarkPng } from '../engine/watermark';
 
@@ -57,7 +58,10 @@ function load(): Settings {
   }
 }
 
-export function mountVideoTab(app: HTMLElement) {
+const KIND_ICON: Record<string, string> = { video: 'clapperboard', gif: 'repeat', webp: 'sparkles', frame: 'camera' };
+const QUALITY_ICON: Record<string, string> = { high: 'gem', balanced: 'gauge', small: 'feather' };
+
+export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const settings = load();
   // En la web no hay ffmpeg: GIF/WebP animado sólo existen en escritorio.
   const desktop = isDesktop() && !!window.desktop?.hasFfmpeg;
@@ -90,20 +94,21 @@ export function mountVideoTab(app: HTMLElement) {
     <div class="layout">
       <section class="panel">
         <div class="drop" tabindex="0">
+          <svg class="drop-border" aria-hidden="true"><rect /></svg>
           <div class="drop-icon">${iconVideoAdd}</div>
           <strong>${esc(t('v.dropTitle'))}</strong>
           <span>${esc(t('v.dropHint'))}</span>
           <div class="row">
-            <button type="button" class="btn" data-act="files">${esc(t('v.addFiles'))}</button>
-            <button type="button" class="btn" data-act="folder">${esc(t('addFolder'))}</button>
+            <button type="button" class="btn main" data-act="files">${ico('clapperboard')}${esc(t('v.addFiles'))}</button>
+            <button type="button" class="btn" data-act="folder">${ico('folder-plus')}${esc(t('addFolder'))}</button>
           </div>
         </div>
         <input class="in-files" type="file" multiple hidden accept="${VIDEO_ACCEPT}" />
         <input class="in-folder" type="file" multiple hidden webkitdirectory />
 
         <div class="queue-head">
-          <h2>${esc(t('queue'))}</h2>
-          <button type="button" class="link" data-act="clear">${esc(t('clear'))}</button>
+          <h2>${ico('list')}${esc(t('queue'))}</h2>
+          <button type="button" class="link" data-act="clear">${ico('trash', 16)}${esc(t('clear'))}</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -125,44 +130,44 @@ export function mountVideoTab(app: HTMLElement) {
       </section>
 
       <aside class="panel settings">
-        <h2>${esc(t('settings'))}</h2>
+        <h2>${ico('settings', 20)}${esc(t('settings'))}</h2>
 
         <fieldset>
-          <legend>${esc(t('saved'))}</legend>
+          <legend>${ico('bookmark')}${esc(t('saved'))}</legend>
           <div class="row nowrap">
             <select class="saved-sel" aria-label="${esc(t('saved'))}"></select>
-            <button type="button" class="btn" data-act="saved-del" title="${esc(t('savedDelete'))}" aria-label="${esc(t('savedDelete'))}">🗑</button>
+            <button type="button" class="btn" data-act="saved-del" title="${esc(t('savedDelete'))}" aria-label="${esc(t('savedDelete'))}">${ico('trash', 16)}</button>
           </div>
           <div class="row nowrap saved-new">
             <input class="saved-name" type="text" maxlength="40" placeholder="${esc(t('savedNamePh'))}" />
-            <button type="button" class="btn" data-act="saved-save">${esc(t('savedSave'))}</button>
+            <button type="button" class="btn" data-act="saved-save">${ico('save', 16)}${esc(t('savedSave'))}</button>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>${esc(t('v.output'))}</legend>
+          <legend>${ico('clapperboard')}${esc(t('v.output'))}</legend>
           <div class="seg seg-wrap">
-            ${KINDS.map((k) => `<label data-only="${k === 'gif' || k === 'webp' ? 'desktop' : ''}"><input type="radio" name="kind" data-bind="kind" value="${k}" /><span>${esc(t(`v.kind.${k}` as Key))}</span></label>`).join('')}
+            ${KINDS.map((k) => `<label data-only="${k === 'gif' || k === 'webp' ? 'desktop' : ''}"><input type="radio" name="kind" data-bind="kind" value="${k}" /><span>${ico(KIND_ICON[k], 16)}${esc(t(`v.kind.${k}` as Key))}</span></label>`).join('')}
           </div>
           <p class="note web-note" hidden>${esc(t('v.webOnlyNote'))}</p>
         </fieldset>
 
         <fieldset data-kinds="video">
-          <legend>${esc(t('format'))}</legend>
+          <legend>${ico('film')}${esc(t('format'))}</legend>
           <div class="seg seg-wrap">
-            ${FORMATS.map((f) => `<label><input type="radio" name="format" data-bind="format" value="${f}" /><span>${esc(t(`v.format.${f}` as Key))}</span></label>`).join('')}
+            ${FORMATS.map((f) => `<label><input type="radio" name="format" data-bind="format" value="${f}" /><span>${ico('film', 16)}${esc(t(`v.format.${f}` as Key))}</span></label>`).join('')}
           </div>
           <p class="note format-note"></p>
         </fieldset>
 
         <fieldset data-kinds="video webp">
-          <legend>${esc(t('quality'))}</legend>
+          <legend>${ico('gauge')}${esc(t('quality'))}</legend>
           <div class="presets">
             ${QUALITIES.map(
               (q) => `
               <label class="preset">
                 <input type="radio" name="quality" data-bind="quality" value="${q}" />
-                <span><b>${esc(t(`v.quality.${q}.name` as Key))}</b><small>${esc(t(`v.quality.${q}.desc` as Key))}</small></span>
+                <span>${ico(QUALITY_ICON[q], 22)}<span class="pr-txt"><b>${esc(t(`v.quality.${q}.name` as Key))}</b><small>${esc(t(`v.quality.${q}.desc` as Key))}</small></span></span>
               </label>`,
             ).join('')}
           </div>
@@ -173,7 +178,7 @@ export function mountVideoTab(app: HTMLElement) {
         </fieldset>
 
         <fieldset data-kinds="video frame">
-          <legend>${esc(t('v.size'))}</legend>
+          <legend>${ico('monitor')}${esc(t('v.size'))}</legend>
           <label class="field">${esc(t('v.maxHeight'))}
             <select data-bind="maxHeight" data-type="number">${HEIGHTS.map((h) => `<option value="${h}">${esc(heightLabel(h))}</option>`).join('')}</select>
           </label>
@@ -183,7 +188,7 @@ export function mountVideoTab(app: HTMLElement) {
         </fieldset>
 
         <fieldset data-kinds="gif webp">
-          <legend>${esc(t('v.animation'))}</legend>
+          <legend>${ico('repeat')}${esc(t('v.animation'))}</legend>
           <div class="row">
             <label class="field">${esc(t('v.animWidth'))}<input type="number" min="16" step="10" data-bind="animWidth" data-type="number" /></label>
             <label class="field">${esc(t('v.animFps'))}<input type="number" min="1" max="30" step="1" data-bind="animFps" data-type="number" /></label>
@@ -192,10 +197,10 @@ export function mountVideoTab(app: HTMLElement) {
         </fieldset>
 
         <fieldset data-kinds="video">
-          <legend>${esc(t('v.audio'))}</legend>
+          <legend>${ico('volume-on')}${esc(t('v.audio'))}</legend>
           <div class="seg">
-            <label><input type="radio" name="audio" data-bind="audio" value="keep" /><span>${esc(t('v.audioKeep'))}</span></label>
-            <label><input type="radio" name="audio" data-bind="audio" value="drop" /><span>${esc(t('v.audioDrop'))}</span></label>
+            <label><input type="radio" name="audio" data-bind="audio" value="keep" /><span>${ico('volume-on', 16)}${esc(t('v.audioKeep'))}</span></label>
+            <label><input type="radio" name="audio" data-bind="audio" value="drop" /><span>${ico('volume-off', 16)}${esc(t('v.audioDrop'))}</span></label>
           </div>
           <label class="field inline">${esc(t('v.audioKbps'))}
             <select data-bind="audioKbps" data-type="number">${AUDIO_KBPS.map((k) => `<option value="${k}">${esc(kbpsLabel(k))}</option>`).join('')}</select>
@@ -203,15 +208,15 @@ export function mountVideoTab(app: HTMLElement) {
         </fieldset>
 
         <fieldset data-kinds="frame">
-          <legend>${esc(t('v.frame'))}</legend>
+          <legend>${ico('camera')}${esc(t('v.frame'))}</legend>
           <label class="field">${esc(t('v.frameTime'))}<input type="number" min="0" step="0.1" data-bind="frameTime" data-type="float" /></label>
           <div class="seg frame-fmt">
-            ${(['jpeg', 'png', 'webp'] as const).map((f) => `<label><input type="radio" name="frameFormat" data-bind="frameFormat" value="${f}" /><span>${f.toUpperCase()}</span></label>`).join('')}
+            ${(['jpeg', 'png', 'webp'] as const).map((f) => `<label><input type="radio" name="frameFormat" data-bind="frameFormat" value="${f}" /><span>${ico('image', 16)}${f.toUpperCase()}</span></label>`).join('')}
           </div>
         </fieldset>
 
         <fieldset data-kinds="video gif webp">
-          <legend>${esc(t('v.trim'))}</legend>
+          <legend>${ico('scissors')}${esc(t('v.trim'))}</legend>
           <div class="row">
             <label class="field">${esc(t('v.trimStart'))}<input type="number" min="0" step="0.1" data-bind="start" data-type="float" /></label>
             <label class="field">${esc(t('v.trimEnd'))}<input type="number" min="0" step="0.1" data-bind="end" data-type="float" placeholder="${esc(t('v.untilEnd'))}" /></label>
@@ -222,10 +227,10 @@ export function mountVideoTab(app: HTMLElement) {
         ${watermarkHtml('vid', true)}
 
         <fieldset class="dest-box">
-          <legend>${esc(t('destination'))}</legend>
+          <legend>${ico('folder-open')}${esc(t('destination'))}</legend>
           <div class="seg">
-            <label><input type="radio" name="vdest" data-bind="dest" value="folder" /><span>${esc(t('destFolder'))}</span></label>
-            <label><input type="radio" name="vdest" data-bind="dest" value="zip" /><span>${esc(t('destZip'))}</span></label>
+            <label><input type="radio" name="vdest" data-bind="dest" value="folder" /><span>${ico('folder-open', 16)}${esc(t('destFolder'))}</span></label>
+            <label><input type="radio" name="vdest" data-bind="dest" value="zip" /><span>${ico('package-open', 16)}${esc(t('destZip'))}</span></label>
           </div>
           <p class="note">${esc(t('destHint'))}</p>
         </fieldset>
@@ -235,8 +240,8 @@ export function mountVideoTab(app: HTMLElement) {
           <progress class="progress" max="1" value="0" hidden></progress>
           <div class="actions">
             <button type="button" class="btn primary convert" data-act="convert"></button>
-            <button type="button" class="btn" data-act="cancel" hidden>${esc(t('cancel'))}</button>
-            <button type="button" class="btn" data-act="open" hidden>${esc(t('openOutput'))}</button>
+            <button type="button" class="btn" data-act="cancel" hidden>${ico('x', 16)}${esc(t('cancel'))}</button>
+            <button type="button" class="btn" data-act="open" hidden>${ico('folder-open', 16)}${esc(t('openOutput'))}</button>
           </div>
         </div>
       </aside>
@@ -342,8 +347,13 @@ export function mountVideoTab(app: HTMLElement) {
 
   // ---------- cola ----------
 
-  function addSources(sources: Source[]) {
+  function addSources(all: Source[]) {
     if (running) return;
+    // Las imágenes soltadas aquí se mandan a la pestaña de imagen.
+    const foreign = all.filter((s) => !isVideoFile(s.file.name) && isSupported(s.file.name));
+    const sources = foreign.length ? all.filter((s) => !foreign.includes(s)) : all;
+    if (foreign.length) tabOpts.foreign?.(foreign, sources.length === 0);
+    if (!sources.length) return;
     lastMessage = '';
     btnOpen.hidden = true;
     for (const src of sources) {
@@ -393,7 +403,7 @@ export function mountVideoTab(app: HTMLElement) {
           <td class="num">${i.outSize != null ? fmtBytes(i.outSize) : '—'}</td>
           <td class="num ${saved != null && saved < 0 ? 'bad' : ''}">${saved != null ? `${saved} %` : '—'}</td>
           <td class="st" title="${esc(statusLabel(i))}">${esc(statusLabel(i))}</td>
-          <td class="acts">${running ? '' : `<button type="button" class="x" data-id="${i.id}" aria-label="${esc(t('clickToRemove'))}">×</button>`}</td>
+          <td class="acts">${running ? '' : `<button type="button" class="x" data-id="${i.id}" aria-label="${esc(t('clickToRemove'))}">${ico('x', 14)}</button>`}</td>
         </tr>`;
       })
       .join('');
@@ -402,7 +412,7 @@ export function mountVideoTab(app: HTMLElement) {
     emptyMsg.hidden = items.length > 0;
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
-    btnConvert.innerHTML = running ? `${iconSpinner}<span>${esc(t('converting'))}</span>` : `${iconWand}<span>${esc(t('convert'))}</span>`;
+    btnConvert.innerHTML = running ? `<span class="spin">${ico('loader', 20)}</span><span>${esc(t('converting'))}</span>` : `${ico('wand', 20)}<span>${esc(t('convert'))}</span>`;
     btnCancel.hidden = !running;
 
     const finished = convertible.filter((i) => i.status === 'done' || i.status === 'error').length;
@@ -603,4 +613,5 @@ export function mountVideoTab(app: HTMLElement) {
   renderSaved();
   syncToDom();
   render();
+  return { add: addSources };
 }

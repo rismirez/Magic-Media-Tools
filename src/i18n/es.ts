@@ -200,6 +200,7 @@ export const es = {
   compareFailed: 'No se pudo generar la vista previa',
   compareHint: 'Arrastra el deslizador para comparar. Si aún no has convertido, se genera con los ajustes actuales (sin guardar nada).',
 
+  compareCol: 'Comparar',
   download: 'Descargar',
   downloadTip: 'Descarga disponible para Windows. Estamos trabajando para que esté disponible en Mac.',
 } as const;

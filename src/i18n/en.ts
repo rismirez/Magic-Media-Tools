@@ -202,6 +202,7 @@ export const en: Dict = {
   compareFailed: 'Could not generate the preview',
   compareHint: 'Drag the slider to compare. If you have not converted yet, it is generated with the current settings (nothing is saved).',
 
+  compareCol: 'Compare',
   download: 'Download',
   downloadTip: 'Download available for Windows. We are working on making it available for Mac.',
 };

@@ -2,6 +2,7 @@ import { t } from '../i18n';
 import type { WatermarkOptions } from '../engine/types';
 import { anchorGrid } from './anchorGrid';
 import { esc } from './format';
+import { ico } from './icons';
 
 /** Ajustes guardables de la marca de agua (la imagen va aparte, sólo en memoria). */
 export type WatermarkSettings = Omit<WatermarkOptions, 'image'> & { enabled: boolean };
@@ -23,7 +24,7 @@ export const defaultWatermark = (): WatermarkSettings => ({
  */
 export function watermarkHtml(prefix: string, video: boolean): string {
   const kinds = (['text', 'image'] as const)
-    .map((k) => `<label><input type="radio" name="${prefix}-wm-kind" data-bind="watermark.kind" value="${k}" /><span>${esc(t(k === 'text' ? 'wm.kindText' : 'wm.kindImage'))}</span></label>`)
+    .map((k) => `<label><input type="radio" name="${prefix}-wm-kind" data-bind="watermark.kind" value="${k}" /><span>${ico(k === 'text' ? 'type' : 'image', 16)}${esc(t(k === 'text' ? 'wm.kindText' : 'wm.kindImage'))}</span></label>`)
     .join('');
   const sizeText = video
     ? ''
@@ -31,7 +32,7 @@ export function watermarkHtml(prefix: string, video: boolean): string {
   const sizeImage = `<label class="field" data-wm-size="${video ? 'both' : 'image'}">${esc(t('wmImageSize'))}<input type="range" min="2" max="80" data-bind="watermark.imgPct" data-type="number" /></label>`;
   return `
     <fieldset class="wm-fieldset">
-      <legend>${esc(t('watermark'))}</legend>
+      <legend>${ico('stamp')}${esc(t('watermark'))}</legend>
       <label class="chk"><input type="checkbox" data-bind="watermark.enabled" data-type="bool" />${esc(t('watermarkEnable'))}</label>
       <div class="wm-box">
         <div class="seg">${kinds}</div>
@@ -40,8 +41,8 @@ export function watermarkHtml(prefix: string, video: boolean): string {
         </div>
         <div class="wm-image">
           <div class="row nowrap">
-            <button type="button" class="btn wm-pick">${esc(t('wmPickImage'))}</button>
-            <button type="button" class="link wm-clear" hidden>${esc(t('wmRemoveImage'))}</button>
+            <button type="button" class="btn wm-pick">${ico('image-plus')}${esc(t('wmPickImage'))}</button>
+            <button type="button" class="link wm-clear" hidden>${ico('x', 14)}${esc(t('wmRemoveImage'))}</button>
           </div>
           <div class="wm-file"><img class="wm-thumb" alt="" hidden /><small class="wm-name"></small></div>
           <input type="file" class="wm-input" accept="image/*" hidden />

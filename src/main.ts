@@ -1,9 +1,12 @@
 import './style.css';
+import './magic.css';
 import { LANGS, getLang, setLang, t, type Lang } from './i18n';
 import { mountImageTab } from './tabs/image';
 import { mountVideoTab } from './tabs/video';
 import { isDesktop } from './platform/sinks';
-import { iconDownload } from './ui/icons';
+import { ico, observeIcons } from './ui/icons';
+import { enhanceSelects } from './ui/select';
+import { mountMagicBackground } from './ui/magic';
 
 /** Última versión publicada del instalador de Windows en GitHub Releases. */
 const DOWNLOAD_URL = 'https://github.com/rismirez/Magic-Media-Tools/releases/latest';
@@ -47,20 +50,20 @@ app.innerHTML = `
         isDesktop()
           ? ''
           : `<div class="dl-wrap">
-        <a class="btn dl" href="${DOWNLOAD_URL}" target="_blank" rel="noopener noreferrer" aria-describedby="dl-tip">${iconDownload}<span>${t('download')}</span></a>
+        <a class="btn dl" href="${DOWNLOAD_URL}" target="_blank" rel="noopener noreferrer" aria-describedby="dl-tip">${ico('download')}<span>${t('download')}</span></a>
         <span id="dl-tip" class="dl-tip" role="tooltip">${t('downloadTip')}</span>
       </div>`
       }
-      <select id="sel-lang" aria-label="${t('language')}">
+      <select id="sel-lang" data-icon="languages" aria-label="${t('language')}">
         ${(Object.keys(LANGS) as Lang[]).map((l) => `<option value="${l}"${l === getLang() ? ' selected' : ''}>${LANGS[l]}</option>`).join('')}
       </select>
-      <select id="sel-theme" aria-label="${t('theme')}">
+      <select id="sel-theme" data-icon="sun-moon" aria-label="${t('theme')}">
         ${(['auto', 'light', 'dark'] as const).map((m) => `<option value="${m}">${t(`theme.${m}` as const)}</option>`).join('')}
       </select>
     </div>
     <nav class="tabs" role="tablist">
-      <button type="button" role="tab" id="tab-image" data-tab="image">${t('tab.image')}</button>
-      <button type="button" role="tab" id="tab-video" data-tab="video">${t('tab.video')}</button>
+      <button type="button" role="tab" id="tab-image" data-tab="image">${ico('image')}<span>${t('tab.image')}</span></button>
+      <button type="button" role="tab" id="tab-video" data-tab="video">${ico('clapperboard')}<span>${t('tab.video')}</span></button>
     </nav>
   </header>
   <main>
@@ -74,8 +77,21 @@ const panels: Record<TabId, HTMLElement> = {
   video: app.querySelector('#panel-video')!,
 };
 
-mountImageTab(panels.image);
-mountVideoTab(panels.video);
+const imageTab = mountImageTab(panels.image, {
+  foreign: (sources, only) => {
+    videoTab.add(sources);
+    if (only) select('video');
+  },
+});
+const videoTab = mountVideoTab(panels.video, {
+  foreign: (sources, only) => {
+    imageTab.add(sources);
+    if (only) select('image');
+  },
+});
+mountMagicBackground();
+enhanceSelects(app);
+observeIcons(document.body);
 
 const selTheme = app.querySelector<HTMLSelectElement>('#sel-theme')!;
 selTheme.value = storedTheme();

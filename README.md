@@ -63,3 +63,7 @@ Si `npm install` no descarga el binario de Electron (scripts de instalación blo
 - El peso máximo de vídeo es aproximado (tasa de bits constante, una pasada).
 - Las actualizaciones automáticas requieren publicar los instaladores como *release* en GitHub.
 - Los ejecutables no están firmados: Windows SmartScreen puede avisar.
+
+## Interfaz
+
+Colores de marca primario `#8a42fc` y secundario `#48d597`, iconos animados de [animateicons](https://animateicons.in) (MIT; los que no trae la librería están hechos en el mismo formato), desplegables propios, fondo con brillo que sigue al cursor y cursor de varita mágica. Al soltar imágenes en la pestaña de vídeo (o al revés) la app cambia sola de pestaña.
