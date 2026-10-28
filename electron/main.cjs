@@ -147,19 +147,38 @@ async function resolveOutput(relPath) {
 }
 
 ipcMain.handle('video:run', async (event, req) => {
-  const { id, inputPath, relOut, options } = req ?? {};
+  const { id, inputPath, relOut, options, watermark } = req ?? {};
   if (typeof inputPath !== 'string' || !path.isAbsolute(inputPath)) throw new Error('Ruta de entrada inválida');
   if (!(await fs.stat(inputPath)).isFile()) throw new Error('La entrada no es un archivo');
   if (typeof relOut !== 'string' || !video.isAllowedOutput(relOut)) throw new Error('Extensión de salida no permitida');
+
+  // La marca de agua llega como PNG ya dibujado (texto o imagen, con su opacidad); se guarda en un temporal sólo para ffmpeg.
+  let wm = null;
+  if (watermark) {
+    const { png, position, widthPct } = watermark;
+    if (!(png instanceof Uint8Array) || png.byteLength === 0 || png.byteLength > 20 * 1024 * 1024) throw new Error('Marca de agua inválida');
+    wm = {
+      file: path.join(app.getPath('temp'), `magic-media-tools-wm-${process.pid}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.png`),
+      position: Math.min(8, Math.max(0, Math.floor(Number(position) || 0))),
+      widthPct: Math.min(80, Math.max(2, Number(widthPct) || 20)),
+    };
+    await fs.writeFile(wm.file, png, { flag: 'wx' });
+  }
+
   const outputPath = await resolveOutput(relOut);
-  const size = await video.run({
-    id,
-    inputPath,
-    outputPath,
-    options,
-    onProgress: (ratio) => event.sender.send('video:progress', { id, ratio }),
-  });
-  return { relPath: path.relative(outputRoot, outputPath).split(path.sep).join('/'), size };
+  try {
+    const size = await video.run({
+      id,
+      inputPath,
+      outputPath,
+      options,
+      watermark: wm,
+      onProgress: (ratio) => event.sender.send('video:progress', { id, ratio }),
+    });
+    return { relPath: path.relative(outputRoot, outputPath).split(path.sep).join('/'), size };
+  } finally {
+    if (wm) fs.rm(wm.file, { force: true }).catch(() => {});
+  }
 });
 
 ipcMain.handle('video:cancel', (_event, id) => video.cancel(id));

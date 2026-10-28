@@ -67,7 +67,7 @@ export const es = {
   flipV: 'Voltear verticalmente',
 
   watermark: 'Marca de agua',
-  watermarkEnable: 'Añadir texto',
+  watermarkEnable: 'Añadir marca de agua',
   watermarkText: 'Texto de la marca de agua',
   opacity: 'Opacidad',
   textSize: 'Tamaño del texto',
@@ -180,6 +180,28 @@ export const es = {
   'v.summaryFrames': '{done} de {total} fotogramas extraídos',
   'v.summaryIdle': '{total} vídeos en cola · {before}',
   clickToRemove: 'Quitar de la cola',
+
+  ratio: 'Proporción',
+  'ratio.free': 'Libre',
+  'ratio.custom': 'Otra',
+  ratioHint: 'Al fijar una proporción, la otra medida se calcula sola. Sin medidas, se usa el mayor tamaño posible.',
+  previewTitle: 'Vista previa',
+
+  'wm.kindText': 'Texto',
+  'wm.kindImage': 'Imagen',
+  wmPickImage: 'Elegir imagen',
+  wmRemoveImage: 'Quitar imagen',
+  wmNoImage: 'Ninguna imagen elegida (PNG con transparencia, JPG, WebP…)',
+  wmImageSize: 'Tamaño (% del ancho)',
+  wmOpacityFull: '100 % = sin transparencia',
+
+  viewCompare: 'Antes / después',
+  comparePreparing: 'Preparando la vista previa…',
+  compareFailed: 'No se pudo generar la vista previa',
+  compareHint: 'Arrastra el deslizador para comparar. Si aún no has convertido, se genera con los ajustes actuales (sin guardar nada).',
+
+  download: 'Descargar',
+  downloadTip: 'Descarga disponible para Windows. Estamos trabajando para que esté disponible en Mac.',
 } as const;
 
 export type Dict = { [K in keyof typeof es]: string };

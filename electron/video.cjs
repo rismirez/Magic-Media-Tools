@@ -60,11 +60,39 @@ const CRF = {
 };
 const WEBP_Q = { high: 85, balanced: 70, small: 50 };
 
-function buildArgs(o, info, input, output) {
+/** Superpone el PNG de marca de agua (con la opacidad ya aplicada) sobre el vídeo: tamaño = % del ancho, posición 3×3. */
+function overlayGraph(pre, wm, post, outWidth) {
+  const margin = 'W*0.03';
+  const x = [margin, '(W-w)/2', `W-w-${margin}`][wm.position % 3];
+  const y = [margin, '(H-h)/2', `H-h-${margin}`][Math.floor(wm.position / 3)];
+  // El ancho en píxeles se calcula aquí (no con scale2ref, cuyas variables cambian entre versiones de ffmpeg).
+  const wmWidth = Math.max(8, Math.round(((outWidth || 1280) * wm.widthPct) / 100));
+  const parts = [
+    `[0:v]${pre || 'null'}[base]`,
+    `[1:v]scale=${wmWidth}:-1[wm]`,
+    `[base][wm]overlay=x=${x}:y=${y}:format=auto[${post ? 'o' : 'v'}]`,
+  ];
+  if (post) parts.push(`[o]${post}[v]`);
+  return parts.join(';');
+}
+
+/** Ancho (px) del vídeo de salida, para dimensionar la marca de agua. 0 si no se pudo averiguar. */
+function outputWidth(o, info) {
+  if (!info.width || !info.height) return 0;
+  if (o.kind === 'gif' || o.kind === 'webp') return Math.min(o.animWidth, info.width);
+  const h = o.maxHeight > 0 ? Math.min(o.maxHeight, info.height) : info.height;
+  return Math.round((info.width * h) / info.height);
+}
+
+function buildArgs(o, info, input, output, wm) {
   const args = ['-hide_banner', '-nostdin', '-y'];
   if (o.kind === 'frame') {
-    args.push('-ss', String(o.frameTime), '-i', input, '-frames:v', '1');
-    if (o.maxHeight > 0) args.push('-vf', `scale=-2:'min(ih,${o.maxHeight})'`);
+    args.push('-ss', String(o.frameTime), '-i', input);
+    if (wm) args.push('-i', wm.file);
+    const scale = o.maxHeight > 0 ? `scale=-2:'min(ih,${o.maxHeight})'` : '';
+    if (wm) args.push('-filter_complex', overlayGraph(scale, wm, '', outputWidth(o, info)), '-map', '[v]');
+    else if (scale) args.push('-vf', scale);
+    args.push('-frames:v', '1');
     const ext = path.extname(output).toLowerCase();
     if (ext === '.jpg') args.push('-q:v', '2');
     else if (ext === '.webp') args.push('-q:v', '90');
@@ -73,6 +101,17 @@ function buildArgs(o, info, input, output) {
   }
   if (o.start > 0) args.push('-ss', String(o.start));
   args.push('-i', input);
+  if (wm) args.push('-i', wm.file);
+  /** Con marca de agua los filtros pasan a un grafo complejo; sin ella se usa -vf como siempre. */
+  const applyFilters = (pre, post = '') => {
+    if (wm) {
+      args.push('-filter_complex', overlayGraph(pre, wm, post, outputWidth(o, info)), '-map', '[v]');
+      if (o.kind === 'video' && o.audio === 'keep') args.push('-map', '0:a:0?');
+    } else {
+      const all = [pre, post].filter(Boolean).join(post && pre ? ',' : '');
+      if (all) args.push('-vf', all);
+    }
+  };
   const available = Math.max(0, (info.duration || 0) - o.start);
   const length = o.end > o.start ? Math.min(o.end - o.start, available || Infinity) : available;
   if (o.end > o.start) args.push('-t', String(o.end - o.start));
@@ -83,7 +122,7 @@ function buildArgs(o, info, input, output) {
   if (o.kind === 'video') {
     if (o.maxHeight > 0 && (!info.height || info.height > o.maxHeight)) filters.push(`scale=-2:${o.maxHeight}`);
     if (fpsCap) filters.push(`fps=${fpsCap}`);
-    if (filters.length) args.push('-vf', filters.join(','));
+    applyFilters(filters.join(','));
 
     const fmt = o.format;
     const crf = CRF[fmt][o.quality];
@@ -109,10 +148,13 @@ function buildArgs(o, info, input, output) {
     else args.push('-c:a', fmt.startsWith('mp4') ? 'aac' : 'libopus', '-b:a', `${audioKbps}k`);
   } else if (o.kind === 'gif') {
     const f = Math.min(o.animFps, 30);
-    args.push('-vf', `fps=${f},scale='min(${o.animWidth},iw)':-2:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4`);
+    const pre = `fps=${f},scale='min(${o.animWidth},iw)':-2:flags=lanczos`;
+    const palette = 'split[s0][s1];[s0]palettegen=max_colors=256[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4';
+    if (wm) applyFilters(pre, palette);
+    else args.push('-vf', `${pre},${palette}`);
     args.push('-an', '-loop', '0');
   } else {
-    args.push('-vf', `fps=${o.animFps},scale='min(${o.animWidth},iw)':-2:flags=lanczos`);
+    applyFilters(`fps=${o.animFps},scale='min(${o.animWidth},iw)':-2:flags=lanczos`);
     args.push('-c:v', 'libwebp', '-q:v', String(WEBP_Q[o.quality]), '-compression_level', '4', '-loop', '0', '-an');
   }
 
@@ -123,10 +165,10 @@ function buildArgs(o, info, input, output) {
 const running = new Map();
 
 /** Ejecuta ffmpeg. onProgress recibe 0..1. Devuelve el tamaño del archivo resultante. */
-async function run({ id, inputPath, outputPath, options, onProgress }) {
+async function run({ id, inputPath, outputPath, options, watermark, onProgress }) {
   const o = sanitize(options);
   const info = await probe(inputPath);
-  const { args, length } = buildArgs(o, info, inputPath, outputPath);
+  const { args, length } = buildArgs(o, info, inputPath, outputPath, watermark);
 
   return new Promise((resolve, reject) => {
     const p = spawn(ffmpegPath(), args, { windowsHide: true });

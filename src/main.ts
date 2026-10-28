@@ -2,6 +2,11 @@ import './style.css';
 import { LANGS, getLang, setLang, t, type Lang } from './i18n';
 import { mountImageTab } from './tabs/image';
 import { mountVideoTab } from './tabs/video';
+import { isDesktop } from './platform/sinks';
+import { iconDownload } from './ui/icons';
+
+/** Última versión publicada del instalador de Windows en GitHub Releases. */
+const DOWNLOAD_URL = 'https://github.com/rismirez/Magic-Media-Tools/releases/latest';
 
 type TabId = 'image' | 'video';
 
@@ -38,6 +43,14 @@ app.innerHTML = `
       <p>${t('appTagline')}</p>
     </div>
     <div class="top-tools">
+      ${
+        isDesktop()
+          ? ''
+          : `<div class="dl-wrap">
+        <a class="btn dl" href="${DOWNLOAD_URL}" target="_blank" rel="noopener noreferrer" aria-describedby="dl-tip">${iconDownload}<span>${t('download')}</span></a>
+        <span id="dl-tip" class="dl-tip" role="tooltip">${t('downloadTip')}</span>
+      </div>`
+      }
       <select id="sel-lang" aria-label="${t('language')}">
         ${(Object.keys(LANGS) as Lang[]).map((l) => `<option value="${l}"${l === getLang() ? ' selected' : ''}>${LANGS[l]}</option>`).join('')}
       </select>

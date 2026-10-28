@@ -18,6 +18,9 @@ import { fromDrop, fromInput, type Source } from '../engine/input';
 import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform/sinks';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
+import { iconSpinner, iconVideoAdd, iconWand } from '../ui/icons';
+import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
+import { watermarkPng } from '../engine/watermark';
 
 type Status = 'pending' | 'processing' | 'done' | 'error' | 'skipped';
 
@@ -32,7 +35,7 @@ interface Item {
   error?: string;
 }
 
-type Settings = VideoOptions & { dest: SinkKind };
+type Settings = VideoOptions & { dest: SinkKind; watermark: WatermarkSettings };
 
 const KINDS: VideoKind[] = ['video', 'gif', 'webp', 'frame'];
 const FORMATS: VideoFormat[] = ['mp4-h264', 'mp4-h265', 'webm-vp9', 'webm-av1'];
@@ -43,11 +46,12 @@ const AUDIO_KBPS = [0, 64, 96, 128, 192, 256];
 const STORAGE_KEY = 'media-compressor:video';
 const PRESETS_KEY = 'media-compressor:video-presets';
 
-const defaults = (): Settings => ({ ...defaultVideoOptions, dest: 'folder' });
+const defaults = (): Settings => ({ ...defaultVideoOptions, dest: 'folder', watermark: defaultWatermark() });
 
 function load(): Settings {
   try {
-    return { ...defaults(), ...JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') };
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    return { ...defaults(), ...saved, watermark: { ...defaultWatermark(), ...(saved.watermark ?? {}) } };
   } catch {
     return defaults();
   }
@@ -86,6 +90,7 @@ export function mountVideoTab(app: HTMLElement) {
     <div class="layout">
       <section class="panel">
         <div class="drop" tabindex="0">
+          <div class="drop-icon">${iconVideoAdd}</div>
           <strong>${esc(t('v.dropTitle'))}</strong>
           <span>${esc(t('v.dropHint'))}</span>
           <div class="row">
@@ -214,6 +219,8 @@ export function mountVideoTab(app: HTMLElement) {
           <p class="note">${esc(t('v.trimHint'))}</p>
         </fieldset>
 
+        ${watermarkHtml('vid', true)}
+
         <fieldset class="dest-box">
           <legend>${esc(t('destination'))}</legend>
           <div class="seg">
@@ -223,13 +230,15 @@ export function mountVideoTab(app: HTMLElement) {
           <p class="note">${esc(t('destHint'))}</p>
         </fieldset>
 
-        <div class="actions">
-          <button type="button" class="btn primary" data-act="convert"></button>
-          <button type="button" class="btn" data-act="cancel" hidden>${esc(t('cancel'))}</button>
-          <button type="button" class="btn" data-act="open" hidden>${esc(t('openOutput'))}</button>
+        <div class="action-bar">
+          <p class="summary" role="status" aria-live="polite"></p>
+          <progress class="progress" max="1" value="0" hidden></progress>
+          <div class="actions">
+            <button type="button" class="btn primary convert" data-act="convert"></button>
+            <button type="button" class="btn" data-act="cancel" hidden>${esc(t('cancel'))}</button>
+            <button type="button" class="btn" data-act="open" hidden>${esc(t('openOutput'))}</button>
+          </div>
         </div>
-        <progress class="progress" max="1" value="0" hidden></progress>
-        <p class="summary" role="status" aria-live="polite"></p>
       </aside>
     </div>
   `;
@@ -247,9 +256,15 @@ export function mountVideoTab(app: HTMLElement) {
   const savedSel = $<HTMLSelectElement>('.saved-sel');
   const savedName = $<HTMLInputElement>('.saved-name');
 
+  const wm = mountWatermark(app, settings.watermark, () => {
+    saveSettings();
+    wm.refresh();
+  });
+
   // ---------- ajustes ----------
 
   function syncVisibility() {
+    wm.refresh();
     app.querySelectorAll<HTMLElement>('[data-kinds]').forEach((el) => {
       el.hidden = !el.dataset.kinds!.split(' ').includes(settings.kind);
     });
@@ -280,7 +295,8 @@ export function mountVideoTab(app: HTMLElement) {
     if (!path) return;
     if (el instanceof HTMLInputElement && el.type === 'radio' && !el.checked) return;
     let value: unknown = el.value;
-    if (el.dataset.type === 'number') value = Math.max(0, Math.floor(Number(el.value) || 0));
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') value = el.checked;
+    else if (el.dataset.type === 'number') value = Math.max(0, Math.floor(Number(el.value) || 0));
     else if (el.dataset.type === 'float') value = Math.max(0, Number(el.value) || 0);
     setPath(settings, path, value);
     saveSettings();
@@ -386,7 +402,7 @@ export function mountVideoTab(app: HTMLElement) {
     emptyMsg.hidden = items.length > 0;
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
-    btnConvert.textContent = running ? t('converting') : t('convert');
+    btnConvert.innerHTML = running ? `${iconSpinner}<span>${esc(t('converting'))}</span>` : `${iconWand}<span>${esc(t('convert'))}</span>`;
     btnCancel.hidden = !running;
 
     const finished = convertible.filter((i) => i.status === 'done' || i.status === 'error').length;
@@ -483,6 +499,8 @@ export function mountVideoTab(app: HTMLElement) {
       i.outSize = undefined;
     }
     const options: VideoOptions = { ...settings };
+    const wmOptions = await wm.options();
+    const wmPng = wmOptions && desktop ? await watermarkPng(wmOptions) : null;
     unsubscribe = window.desktop?.onVideoProgress?.(({ id, ratio }) => {
       if (id !== currentId) return;
       const item = items.find((i) => i.id === id);
@@ -502,16 +520,17 @@ export function mountVideoTab(app: HTMLElement) {
         const relOut = outputName(item.src.relPath, options);
         if (desktop) {
           const inputPath = window.desktop!.getPathForFile(item.src.file);
-          const res = await window.desktop!.videoRun(item.id, inputPath, relOut, options as unknown as DesktopVideoOptions);
+          const wmPayload = wmOptions && wmPng ? { png: wmPng, position: wmOptions.position, widthPct: wmOptions.imgPct } : null;
+          const res = await window.desktop!.videoRun(item.id, inputPath, relOut, options as unknown as DesktopVideoOptions, wmPayload);
           item.outSize = res.size;
         } else {
           const buffer =
             options.kind === 'frame'
-              ? await extractFrameWeb(item.src.file, options.frameTime, options.frameFormat, options.maxHeight)
+              ? await extractFrameWeb(item.src.file, options.frameTime, options.frameFormat, options.maxHeight, wmOptions)
               : await convertVideoWeb(item.src.file, options, (r) => {
                   item.progress = r;
                   renderSoon();
-                }, webHandle);
+                }, webHandle, wmOptions);
           await sink.write(relOut, new Uint8Array(buffer));
           item.outSize = buffer.byteLength;
         }

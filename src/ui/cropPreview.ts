@@ -57,8 +57,10 @@ export function drawCropPreview(canvas: HTMLCanvasElement, input: PreviewInput):
   const pad = 6;
   const mode = input.resize.mode;
   const accent = css('--accent');
+  const r = input.resize;
+  const boxed = (r.width > 0 && r.height > 0) || r.ratio > 0;
 
-  if (mode === 'contain' && input.resize.width > 0 && input.resize.height > 0) {
+  if (mode === 'contain' && boxed) {
     // Se dibuja la caja de salida con la imagen dentro.
     const k = Math.min((W - pad * 2) / plan.outW, (H - pad * 2) / plan.outH);
     const bw = plan.outW * k;
@@ -85,7 +87,7 @@ export function drawCropPreview(canvas: HTMLCanvasElement, input: PreviewInput):
   const iy = (H - ih) / 2;
   ctx.drawImage(oriented, ix, iy, iw, ih);
 
-  if (mode === 'cover' && input.resize.width > 0 && input.resize.height > 0) {
+  if (mode === 'cover' && boxed) {
     const rx = ix + plan.sx * k;
     const ry = iy + plan.sy * k;
     const rw = plan.sw * k;

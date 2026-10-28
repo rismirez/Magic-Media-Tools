@@ -68,7 +68,7 @@ export const en: Dict = {
   flipV: 'Flip vertically',
 
   watermark: 'Watermark',
-  watermarkEnable: 'Add text',
+  watermarkEnable: 'Add watermark',
   watermarkText: 'Watermark text',
   opacity: 'Opacity',
   textSize: 'Text size',
@@ -182,4 +182,26 @@ export const en: Dict = {
   'v.summaryFrames': '{done} of {total} frames extracted',
   'v.summaryIdle': '{total} videos in queue · {before}',
   clickToRemove: 'Remove from queue',
+
+  ratio: 'Aspect ratio',
+  'ratio.free': 'Free',
+  'ratio.custom': 'Other',
+  ratioHint: 'With a ratio set, the other dimension is calculated for you. With no size, the largest possible size is used.',
+  previewTitle: 'Preview',
+
+  'wm.kindText': 'Text',
+  'wm.kindImage': 'Image',
+  wmPickImage: 'Choose image',
+  wmRemoveImage: 'Remove image',
+  wmNoImage: 'No image chosen (PNG with transparency, JPG, WebP…)',
+  wmImageSize: 'Size (% of width)',
+  wmOpacityFull: '100 % = fully opaque',
+
+  viewCompare: 'Before / after',
+  comparePreparing: 'Preparing the preview…',
+  compareFailed: 'Could not generate the preview',
+  compareHint: 'Drag the slider to compare. If you have not converted yet, it is generated with the current settings (nothing is saved).',
+
+  download: 'Download',
+  downloadTip: 'Download available for Windows. We are working on making it available for Mac.',
 };

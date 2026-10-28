@@ -15,7 +15,14 @@ interface DesktopApi {
   /** ffmpeg incluido en la app. */
   hasFfmpeg: boolean;
   getPathForFile(file: File): string;
-  videoRun(id: number, inputPath: string, relOut: string, options: DesktopVideoOptions): Promise<{ relPath: string; size: number }>;
+  videoRun(
+    id: number,
+    inputPath: string,
+    relOut: string,
+    options: DesktopVideoOptions,
+    /** PNG ya dibujado (con opacidad), posición 3×3 y % del ancho del vídeo. */
+    watermark?: { png: Uint8Array; position: number; widthPct: number } | null,
+  ): Promise<{ relPath: string; size: number }>;
   videoCancel(id: number): Promise<void>;
   onVideoProgress(cb: (p: { id: number; ratio: number }) => void): () => void;
 }

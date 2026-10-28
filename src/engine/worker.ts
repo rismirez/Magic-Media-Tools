@@ -8,7 +8,8 @@ import * as UTIF from 'utif2';
 import { codecParams } from './presets';
 import { orient } from './canvas';
 import { planResize, type ResizePlan } from './geometry';
-import type { ConvertOptions, Output, WatermarkOptions, WorkerRequest, WorkerResponse } from './types';
+import { decodeWatermarkImage, drawWatermark } from './watermark';
+import type { ConvertOptions, Output, WorkerRequest, WorkerResponse } from './types';
 
 const isTiff = (mime: string, name: string) => /tiff?$/i.test(mime) || /\.tiff?$/i.test(name);
 
@@ -71,28 +72,6 @@ function render(src: OffscreenCanvas, plan: ResizePlan, background: string): Off
   }
   ctx.drawImage(scaled, plan.dx, plan.dy);
   return out;
-}
-
-function drawWatermark(canvas: OffscreenCanvas, w: WatermarkOptions) {
-  const text = w.text.trim();
-  if (!text) return;
-  const ctx = canvas.getContext('2d')!;
-  const size = Math.max(10, Math.round((Math.min(canvas.width, canvas.height) * w.sizePct) / 100));
-  const margin = Math.round(size * 0.6);
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, Math.max(0, w.opacity / 100));
-  ctx.font = `600 ${size}px system-ui, "Segoe UI", sans-serif`;
-  ctx.textBaseline = 'middle';
-  const col = w.position % 3;
-  const row = Math.floor(w.position / 3);
-  ctx.textAlign = col === 0 ? 'left' : col === 1 ? 'center' : 'right';
-  const x = col === 0 ? margin : col === 1 ? canvas.width / 2 : canvas.width - margin;
-  const y = row === 0 ? margin + size / 2 : row === 1 ? canvas.height / 2 : canvas.height - margin - size / 2;
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = size * 0.15;
-  ctx.fillStyle = '#fff';
-  ctx.fillText(text, x, y);
-  ctx.restore();
 }
 
 function hasAlpha(img: ImageData): boolean {
@@ -178,14 +157,16 @@ async function convert(req: WorkerRequest) {
     : [planResize(oriented.width, oriented.height, o.resize)];
 
   const outputs: Output[] = [];
+  const wmBitmap = o.watermark ? await decodeWatermarkImage(o.watermark) : null;
   for (const plan of plans) {
     const canvas = render(oriented, plan, o.resize.background);
-    if (o.watermark) drawWatermark(canvas, o.watermark);
+    if (o.watermark) drawWatermark(canvas, o.watermark, wmBitmap);
     let img = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
     if (o.format === 'jpeg' && alpha) img = flatten(img);
     const { buffer, targetMissed } = await encode(img, o);
     outputs.push({ buffer, width: canvas.width, height: canvas.height, targetMissed });
   }
+  wmBitmap?.close();
   return { outputs, hasAlpha: alpha };
 }
 

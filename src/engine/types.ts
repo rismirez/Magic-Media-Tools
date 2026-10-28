@@ -4,13 +4,18 @@ export type OutputFormat = 'webp' | 'avif' | 'jpeg' | 'png';
 export type PresetId = 'keep' | 'lossless' | 'balanced' | 'smallest';
 
 export interface WatermarkOptions {
+  kind: 'text' | 'image';
   text: string;
   /** Posición 3×3 como índice 0-8 (fila * 3 + columna). */
   position: number;
   /** 0-100 */
   opacity: number;
-  /** Tamaño del texto como % del lado menor de la imagen. */
+  /** Imagen: ancho como % del ancho de la imagen. En vídeo se usa para texto e imagen. */
+  imgPct: number;
+  /** Texto: tamaño como % del lado menor de la imagen. */
   sizePct: number;
+  /** Imagen de la marca de agua (sólo en memoria: no se guarda en los ajustes). */
+  image?: { buffer: ArrayBuffer; mime: string } | null;
 }
 
 export interface ConvertOptions {

@@ -2,12 +2,14 @@ import { t, type Key } from '../i18n';
 import { WorkerPool } from '../engine/pool';
 import { PRESET_ORDER } from '../engine/presets';
 import { defaultResize, type FitMode, type ResizeOptions } from '../engine/geometry';
-import { EXTENSIONS, type ConvertOptions, type OutputFormat, type PresetId, type WatermarkOptions } from '../engine/types';
+import { EXTENSIONS, type ConvertOptions, type OutputFormat, type PresetId } from '../engine/types';
 import { ACCEPT, fromDrop, fromInput, isHeic, isSupported, mimeFor, readForConversion, type Source } from '../engine/input';
 import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform/sinks';
 import { anchorGrid } from '../ui/anchorGrid';
 import { drawCropPreview } from '../ui/cropPreview';
 import { openCompare } from '../ui/compare';
+import { iconCompare, iconImageAdd, iconSpinner, iconWand } from '../ui/icons';
+import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
 
@@ -20,6 +22,7 @@ interface Item {
   inSize: number;
   outSize?: number;
   outBlob?: Blob;
+  outKey?: string;
   outCount?: number;
   missedTarget?: boolean;
   error?: string;
@@ -35,10 +38,25 @@ interface Settings {
   rotate: 0 | 90 | 180 | 270;
   flipH: boolean;
   flipV: boolean;
-  watermark: WatermarkOptions & { enabled: boolean };
+  watermark: WatermarkSettings;
+  /** Proporción elegida para recortar/encajar: 'free', 'custom' o 'a:b'. */
+  ratioId: string;
+  ratioW: number;
+  ratioH: number;
   template: string;
   dest: SinkKind;
 }
+
+const RATIOS: Array<{ id: string; label?: string }> = [
+  { id: 'free' },
+  { id: '1:1', label: '1:1' },
+  { id: '4:3', label: '4:3' },
+  { id: '3:4', label: '3:4' },
+  { id: '16:9', label: '16:9' },
+  { id: '9:16', label: '9:16' },
+  { id: '21:9', label: '21:9' },
+  { id: 'custom' },
+];
 
 const FORMATS: Array<{ id: OutputFormat; label: string }> = [
   { id: 'webp', label: 'WebP' },
@@ -60,7 +78,10 @@ const defaults = (): Settings => ({
   rotate: 0,
   flipH: false,
   flipV: false,
-  watermark: { enabled: false, text: '', position: 8, opacity: 70, sizePct: 5 },
+  watermark: defaultWatermark(),
+  ratioId: 'free',
+  ratioW: 16,
+  ratioH: 9,
   template: '{nombre}',
   dest: 'folder',
 });
@@ -108,6 +129,7 @@ export function mountImageTab(app: HTMLElement) {
     <div class="layout">
       <section class="panel">
         <div id="drop" class="drop" tabindex="0">
+          <div class="drop-icon">${iconImageAdd}</div>
           <strong>${esc(t('dropTitle'))}</strong>
           <span>${esc(t('dropHint'))}</span>
           <div class="row">
@@ -191,54 +213,51 @@ export function mountImageTab(app: HTMLElement) {
             <label class="field">${esc(t('width'))}<input type="number" min="0" step="1" data-bind="resize.width" data-type="number" placeholder="${esc(t('noLimit'))}" /></label>
             <label class="field">${esc(t('height'))}<input type="number" min="0" step="1" data-bind="resize.height" data-type="number" placeholder="${esc(t('noLimit'))}" /></label>
           </div>
-          <div id="crop-box" class="crop-box">
-            <div class="crop-row">
-              <div>
-                <span class="mini">${esc(t('position'))}</span>
-                <div id="anchor-host"></div>
-              </div>
-              <div class="crop-prev">
-                <canvas id="crop-canvas" width="320" height="200"></canvas>
-                <small id="crop-caption"></small>
-              </div>
+          <div id="ratio-box" class="ratio-box">
+            <span class="mini">${esc(t('ratio'))}</span>
+            <div class="chips">
+              ${RATIOS.map((r) => `<label><input type="radio" name="ratio" data-bind="ratioId" value="${r.id}" /><span>${esc(r.label ?? t(`ratio.${r.id}` as Key))}</span></label>`).join('')}
             </div>
-            <label id="bg-row" class="field inline">${esc(t('background'))}
-              <span class="row nowrap">
-                <label class="chk"><input type="checkbox" id="bg-transparent" />${esc(t('transparent'))}</label>
-                <input type="color" id="bg-color" value="#ffffff" />
-              </span>
-            </label>
+            <div id="ratio-custom" class="row nowrap ratio-custom">
+              <input type="number" min="1" step="1" data-bind="ratioW" data-type="number" aria-label="${esc(t('width'))}" />
+              <b>:</b>
+              <input type="number" min="1" step="1" data-bind="ratioH" data-type="number" aria-label="${esc(t('height'))}" />
+            </div>
+            <p class="note">${esc(t('ratioHint'))}</p>
           </div>
+          <div class="prev-row">
+            <div id="anchor-wrap">
+              <span class="mini">${esc(t('position'))}</span>
+              <div id="anchor-host"></div>
+            </div>
+            <div class="crop-prev">
+              <span class="mini">${esc(t('previewTitle'))}</span>
+              <canvas id="crop-canvas" width="320" height="200"></canvas>
+              <small id="crop-caption"></small>
+            </div>
+          </div>
+          <div class="tf-bar">
+            <span class="mini">${esc(t('transform'))}</span>
+            <div class="row">
+              <button type="button" class="btn" data-act="rot-l" title="${esc(t('rotateLeft'))}" aria-label="${esc(t('rotateLeft'))}">↺</button>
+              <button type="button" class="btn" data-act="rot-r" title="${esc(t('rotateRight'))}" aria-label="${esc(t('rotateRight'))}">↻</button>
+              <button type="button" class="btn" data-act="flip-h" title="${esc(t('flipH'))}" aria-label="${esc(t('flipH'))}" aria-pressed="false">⇋</button>
+              <button type="button" class="btn" data-act="flip-v" title="${esc(t('flipV'))}" aria-label="${esc(t('flipV'))}" aria-pressed="false">⇅</button>
+            </div>
+          </div>
+          <label id="bg-row" class="field inline">${esc(t('background'))}
+            <span class="row nowrap">
+              <label class="chk"><input type="checkbox" id="bg-transparent" />${esc(t('transparent'))}</label>
+              <input type="color" id="bg-color" value="#ffffff" />
+            </span>
+          </label>
           <label class="field inline">${esc(t('sizes'))}
             <input type="text" data-bind="sizes" data-type="text" placeholder="480, 768, 1080" />
           </label>
           <p class="note">${esc(t('sizesHint'))}</p>
         </fieldset>
 
-        <fieldset>
-          <legend>${esc(t('transform'))}</legend>
-          <div class="row">
-            <button type="button" class="btn" data-act="rot-l" title="${esc(t('rotateLeft'))}">↺</button>
-            <button type="button" class="btn" data-act="rot-r" title="${esc(t('rotateRight'))}">↻</button>
-            <button type="button" class="btn" data-act="flip-h" title="${esc(t('flipH'))}" aria-pressed="false">⇋</button>
-            <button type="button" class="btn" data-act="flip-v" title="${esc(t('flipV'))}" aria-pressed="false">⇅</button>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>${esc(t('watermark'))}</legend>
-          <label class="chk"><input type="checkbox" data-bind="watermark.enabled" data-type="bool" />${esc(t('watermarkEnable'))}</label>
-          <div id="wm-box">
-            <input type="text" data-bind="watermark.text" data-type="text" maxlength="80" placeholder="${esc(t('watermarkText'))}" />
-            <div class="crop-row">
-              <div><span class="mini">${esc(t('position'))}</span><div id="wm-anchor"></div></div>
-              <div class="grow">
-                <label class="field">${esc(t('opacity'))}<input type="range" min="10" max="100" data-bind="watermark.opacity" data-type="number" /></label>
-                <label class="field">${esc(t('textSize'))}<input type="range" min="2" max="20" data-bind="watermark.sizePct" data-type="number" /></label>
-              </div>
-            </div>
-          </div>
-        </fieldset>
+        ${watermarkHtml('img', false)}
 
         <fieldset>
           <legend>${esc(t('naming'))}</legend>
@@ -255,13 +274,15 @@ export function mountImageTab(app: HTMLElement) {
           <p class="note">${esc(t('destHint'))}</p>
         </fieldset>
 
-        <div class="actions">
-          <button type="button" id="btn-convert" class="btn primary"></button>
-          <button type="button" id="btn-cancel" class="btn" hidden>${esc(t('cancel'))}</button>
-          <button type="button" id="btn-open" class="btn" hidden>${esc(t('openOutput'))}</button>
+        <div class="action-bar">
+          <p id="summary" class="summary" role="status" aria-live="polite"></p>
+          <progress id="progress" max="1" value="0" hidden></progress>
+          <div class="actions">
+            <button type="button" id="btn-convert" class="btn primary convert"></button>
+            <button type="button" id="btn-cancel" class="btn" hidden>${esc(t('cancel'))}</button>
+            <button type="button" id="btn-open" class="btn" hidden>${esc(t('openOutput'))}</button>
+          </div>
         </div>
-        <progress id="progress" max="1" value="0" hidden></progress>
-        <p id="summary" class="summary" role="status" aria-live="polite"></p>
       </aside>
     </div>
   `;
@@ -286,21 +307,20 @@ export function mountImageTab(app: HTMLElement) {
     changed();
   });
   $('#anchor-host').appendChild(cropAnchor.el);
-  const wmAnchor = anchorGrid((i) => {
-    settings.watermark.position = i;
-    changed();
-  });
-  $('#wm-anchor').appendChild(wmAnchor.el);
+  const wm = mountWatermark(app, settings.watermark, () => changed());
 
   // ---------- ajustes ----------
 
   function syncVisibility() {
     const mode = settings.resize.mode;
     const sizesActive = parseSizes().length > 0;
+    const boxed = mode === 'cover' || mode === 'contain';
     $('#dims').hidden = mode === 'none';
-    $('#crop-box').hidden = mode !== 'cover' && mode !== 'contain';
+    $('#ratio-box').hidden = !boxed;
+    $('#ratio-custom').hidden = settings.ratioId !== 'custom';
+    $('#anchor-wrap').hidden = !boxed;
     $('#bg-row').hidden = mode !== 'contain';
-    $('#wm-box').hidden = !settings.watermark.enabled;
+    wm.refresh();
     const modeNote = sizesActive ? 'modeNote.sizes' : (`modeNote.${mode}` as Key);
     $('#mode-note').textContent = t(modeNote);
     const noteKey = ({ png: 'note.png', jpeg: 'note.jpeg', avif: 'note.avif' } as Record<string, Key>)[settings.format];
@@ -319,7 +339,7 @@ export function mountImageTab(app: HTMLElement) {
     const dest = canPickFolder() ? settings.dest : 'zip';
     app.querySelector<HTMLInputElement>(`input[name=dest][value=${dest}]`)!.checked = true;
     cropAnchor.set(settings.resize.anchorY * 3 + settings.resize.anchorX);
-    wmAnchor.set(settings.watermark.position);
+    applyRatio('ratio');
     const transparent = settings.resize.background === 'transparent';
     bgTransparent.checked = transparent;
     bgColor.disabled = transparent;
@@ -332,6 +352,31 @@ export function mountImageTab(app: HTMLElement) {
       .split(/[\s,;]+/)
       .map((s) => Math.floor(Number(s)))
       .filter((n) => n > 0);
+
+  function ratioValue(): number {
+    const id = settings.ratioId;
+    if (id === 'free') return 0;
+    const [a, b] = id === 'custom' ? [settings.ratioW, settings.ratioH] : id.split(':').map(Number);
+    return a > 0 && b > 0 ? a / b : 0;
+  }
+
+  /** Con una proporción fijada, la medida que no se acaba de tocar se calcula a partir de la otra. */
+  function applyRatio(source: 'width' | 'height' | 'ratio') {
+    const rs = settings.resize;
+    const r = ratioValue();
+    rs.ratio = r;
+    if (!(r > 0) || (rs.mode !== 'cover' && rs.mode !== 'contain')) return;
+    if (source === 'width' || (source === 'ratio' && rs.width > 0)) {
+      if (rs.width > 0) rs.height = Math.max(1, Math.round(rs.width / r));
+    } else if (rs.height > 0) {
+      rs.width = Math.max(1, Math.round(rs.height * r));
+    }
+    // No se reescribe el campo que se está editando.
+    for (const [path, v] of [['resize.width', rs.width], ['resize.height', rs.height]] as const) {
+      const el = app.querySelector<HTMLInputElement>(`[data-bind="${path}"]`);
+      if (el && el !== document.activeElement) el.value = v ? String(v) : '';
+    }
+  }
 
   function changed() {
     saveSettings();
@@ -354,6 +399,9 @@ export function mountImageTab(app: HTMLElement) {
     else if (el.dataset.type === 'number') value = Math.max(0, Math.floor(Number(el.value) || 0));
     else value = el.value;
     setPath(settings, path, value);
+    if (path === 'resize.width') applyRatio('width');
+    else if (path === 'resize.height') applyRatio('height');
+    else if (path === 'resize.mode' || path === 'ratioId' || path === 'ratioW' || path === 'ratioH') applyRatio('ratio');
     changed();
   };
   // "input" para sliders y texto en vivo; "change" para radios y números al salir del campo.
@@ -452,7 +500,6 @@ export function mountImageTab(app: HTMLElement) {
   }
 
   async function renderPreview() {
-    if ($('#crop-box').hidden) return;
     await ensureSample();
     const { outW, outH } = drawCropPreview(cropCanvas, {
       image: sample?.bitmap ?? null,
@@ -495,12 +542,12 @@ export function mountImageTab(app: HTMLElement) {
       .map((i) => {
         const saved = i.outSize != null ? pct(i.inSize, i.outSize) : null;
         const extra = i.outCount && i.outCount > 1 ? ` <small>(+${i.outCount - 1})</small>` : '';
-        const compare =
-          i.status === 'done' && i.outBlob
-            ? `<button type="button" class="x cmp" data-id="${i.id}" title="${esc(t('compare'))}" aria-label="${esc(t('compare'))}">◐</button>`
-            : '';
-        const remove = running ? '' : `<button type="button" class="x" data-id="${i.id}" data-rm aria-label="${esc(t('clickToRemove'))}">×</button>`;
-        return `<tr data-s="${i.status}">
+        const viewable = i.status === 'done' || i.status === 'pending' || i.status === 'error';
+        const compare = viewable
+          ? `<button type="button" class="view-btn" data-view title="${esc(t('compare'))}" aria-label="${esc(t('compare'))}">${iconCompare}<span>${esc(t('viewCompare'))}</span></button>`
+          : '';
+        const remove = running ? '' : `<button type="button" class="x" data-rm aria-label="${esc(t('clickToRemove'))}">×</button>`;
+        return `<tr data-s="${i.status}" data-id="${i.id}"${viewable ? ' class="clickable"' : ''}>
           <td class="name" title="${esc(i.src.relPath)}">${esc(i.src.relPath)}</td>
           <td class="num">${fmtBytes(i.inSize)}</td>
           <td class="num">${i.outSize != null ? fmtBytes(i.outSize) : '—'}${extra}</td>
@@ -515,7 +562,7 @@ export function mountImageTab(app: HTMLElement) {
     emptyMsg.hidden = items.length > 0;
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
-    btnConvert.textContent = running ? t('converting') : t('convert');
+    btnConvert.innerHTML = running ? `${iconSpinner}<span>${esc(t('converting'))}</span>` : `${iconWand}<span>${esc(t('convert'))}</span>`;
     btnCancel.hidden = !running;
 
     const done = items.filter((i) => i.status === 'done');
@@ -547,29 +594,48 @@ export function mountImageTab(app: HTMLElement) {
     summary.textContent = lines.join('\n');
   }
 
+  /** Clave de los ajustes que cambian el resultado: si coincide, se reutiliza lo ya convertido. */
+  const settingsKey = () => JSON.stringify({ ...settings, wmImage: wm.hasImage() });
+
+  /** Visor antes/después. Si el archivo aún no está convertido (o los ajustes cambiaron) se genera la vista previa al momento, sin guardar nada. */
+  function openViewer(id: number) {
+    const item = items.find((i) => i.id === id);
+    if (!item || item.status === 'skipped' || item.status === 'processing') return;
+    const displayable = !isHeic(item.src.file.name) && !/tiff?$/i.test(item.src.file.name);
+    const beforeUrl = displayable ? URL.createObjectURL(item.src.file) : null;
+    const mimeOut = mimeFor(`x.${EXTENSIONS[settings.format]}`);
+
+    const after = (async () => {
+      let blob: Blob;
+      let extra = '';
+      if (item.status === 'done' && item.outBlob && item.outKey === settingsKey()) {
+        blob = item.outBlob;
+      } else {
+        pool ??= new WorkerPool();
+        const { buffer, mime } = await readForConversion(item.src.file);
+        const res = await pool.run({ buffer, mime, name: item.src.file.name, options: { ...(await buildOptions()), sizes: [] } });
+        const out = res.outputs[0];
+        blob = new Blob([out.buffer], { type: mimeOut });
+        extra = ` · ${out.width}×${out.height}`;
+      }
+      return { url: URL.createObjectURL(blob), label: `${t('after')} · ${fmtBytes(blob.size)}${extra}` };
+    })();
+
+    openCompare({ title: item.src.relPath, beforeUrl, beforeLabel: `${t('before')} · ${fmtBytes(item.inSize)}`, after });
+  }
+
   rows.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button.x');
-    if (!btn) return;
-    const id = Number(btn.dataset.id);
-    if (btn.classList.contains('cmp')) {
-      const item = items.find((i) => i.id === id);
-      if (!item?.outBlob) return;
-      const displayable = !isHeic(item.src.file.name) && !/tiff?$/i.test(item.src.file.name);
-      const beforeUrl = displayable ? URL.createObjectURL(item.src.file) : null;
-      const afterUrl = URL.createObjectURL(item.outBlob);
-      openCompare({
-        title: item.src.relPath,
-        beforeUrl,
-        afterUrl,
-        beforeLabel: `${t('before')} · ${fmtBytes(item.inSize)}`,
-        afterLabel: `${t('after')} · ${fmtBytes(item.outSize ?? 0)}`,
-      });
+    const target = e.target as HTMLElement;
+    const id = Number(target.closest<HTMLElement>('tr')?.dataset.id);
+    if (!id) return;
+    if (target.closest('[data-rm]')) {
+      if (running) return;
+      items = items.filter((i) => i.id !== id);
+      render();
+      schedulePreview();
       return;
     }
-    if (running) return;
-    items = items.filter((i) => i.id !== id);
-    render();
-    schedulePreview();
+    openViewer(id);
   });
 
   btnClear.addEventListener('click', () => {
@@ -625,7 +691,7 @@ export function mountImageTab(app: HTMLElement) {
 
   // ---------- conversión ----------
 
-  const buildOptions = (): ConvertOptions => ({
+  const buildOptions = async (): Promise<ConvertOptions> => ({
     format: settings.format,
     preset: settings.preset,
     resize: settings.resize,
@@ -634,7 +700,7 @@ export function mountImageTab(app: HTMLElement) {
     flipV: settings.flipV,
     targetKB: settings.targetKB,
     sizes: parseSizes(),
-    watermark: settings.watermark.enabled && settings.watermark.text.trim() ? settings.watermark : null,
+    watermark: await wm.options(),
   });
 
   function outputName(relPath: string, width: number, height: number, multi: boolean): string {
@@ -687,7 +753,8 @@ export function mountImageTab(app: HTMLElement) {
     }
     render();
 
-    const options = buildOptions();
+    const options = await buildOptions();
+    const key = settingsKey();
     const multi = options.sizes.length > 0;
 
     const lane = async () => {
@@ -707,6 +774,7 @@ export function mountImageTab(app: HTMLElement) {
             if (out === res.outputs[0]) {
               item.outSize = bytes.byteLength;
               item.outBlob = new Blob([bytes], { type: mimeOut });
+              item.outKey = key;
             }
             if (out.targetMissed) item.missedTarget = true;
           }

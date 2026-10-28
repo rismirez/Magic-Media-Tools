@@ -11,6 +11,8 @@ export interface ResizeOptions {
   anchorY: Anchor;
   /** Relleno de las bandas en «contain». "transparent" o #rrggbb. */
   background: string;
+  /** Proporción ancho/alto para cover/contain (0 = libre). Completa la medida que falte; sin medidas usa el mayor tamaño posible. */
+  ratio: number;
 }
 
 export interface ResizePlan {
@@ -35,6 +37,7 @@ export const defaultResize: ResizeOptions = {
   anchorX: 1,
   anchorY: 1,
   background: 'transparent',
+  ratio: 0,
 };
 
 /** Compartido entre el worker (que recorta de verdad) y la UI (que lo dibuja en la vista previa). */
@@ -43,8 +46,17 @@ export function planResize(srcW: number, srcH: number, o: ResizeOptions): Resize
   const none: ResizePlan = { ...whole, outW: srcW, outH: srcH, dx: 0, dy: 0, dw: srcW, dh: srcH };
 
   let mode = o.mode;
+  let boxW = o.width;
+  let boxH = o.height;
+  if ((mode === 'cover' || mode === 'contain') && o.ratio > 0) {
+    if (!(boxW > 0) && !(boxH > 0)) {
+      boxW = mode === 'cover' ? Math.min(srcW, srcH * o.ratio) : Math.max(srcW, srcH * o.ratio);
+      boxH = boxW / o.ratio;
+    } else if (!(boxH > 0)) boxH = boxW / o.ratio;
+    else if (!(boxW > 0)) boxW = boxH * o.ratio;
+  }
   // Cover/contain necesitan caja completa; con una sola medida se comportan como «inside».
-  if ((mode === 'cover' || mode === 'contain') && !(o.width > 0 && o.height > 0)) mode = 'inside';
+  if ((mode === 'cover' || mode === 'contain') && !(boxW > 0 && boxH > 0)) mode = 'inside';
 
   if (mode === 'none') return none;
 
@@ -58,8 +70,8 @@ export function planResize(srcW: number, srcH: number, o: ResizeOptions): Resize
     return { ...whole, outW: w, outH: h, dx: 0, dy: 0, dw: w, dh: h };
   }
 
-  const tw = Math.round(o.width);
-  const th = Math.round(o.height);
+  const tw = Math.max(1, Math.round(boxW));
+  const th = Math.max(1, Math.round(boxH));
   const fx = o.anchorX / 2;
   const fy = o.anchorY / 2;
 

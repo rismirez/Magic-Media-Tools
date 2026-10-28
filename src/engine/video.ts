@@ -12,7 +12,10 @@ import {
   WebMOutputFormat,
   getEncodableVideoCodecs,
   type VideoCodec,
+  type VideoSample,
 } from 'mediabunny';
+import type { WatermarkOptions } from './types';
+import { decodeWatermarkImage, drawSprite, hasWatermark, makeSprite } from './watermark';
 
 export type VideoKind = 'video' | 'gif' | 'webp' | 'frame';
 export type VideoFormat = 'mp4-h264' | 'mp4-h265' | 'webm-vp9' | 'webm-av1';
@@ -98,6 +101,7 @@ export async function convertVideoWeb(
   o: VideoOptions,
   onProgress: (ratio: number) => void,
   handle: WebHandle,
+  watermark?: WatermarkOptions | null,
 ): Promise<ArrayBuffer> {
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
   const isMp4 = o.format.startsWith('mp4');
@@ -122,6 +126,25 @@ export async function convertVideoWeb(
     if (!stats.averagePacketRate || stats.averagePacketRate > o.maxFps + 0.5) video.frameRate = o.maxFps;
   }
 
+  if (hasWatermark(watermark)) {
+    // Cada fotograma (ya redimensionado) se pinta en un lienzo con la marca de agua encima.
+    const bitmap = await decodeWatermarkImage(watermark);
+    const sprite = makeSprite(watermark, bitmap);
+    bitmap?.close();
+    if (sprite) {
+      let canvas: OffscreenCanvas | null = null;
+      video.process = (sample: VideoSample) => {
+        const w = sample.displayWidth;
+        const h = sample.displayHeight;
+        if (!canvas || canvas.width !== w || canvas.height !== h) canvas = new OffscreenCanvas(w, h);
+        const ctx = canvas.getContext('2d')!;
+        sample.draw(ctx, 0, 0, w, h);
+        drawSprite(ctx, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+        return canvas;
+      };
+    }
+  }
+
   const audio: Record<string, unknown> =
     o.audio === 'drop' ? { discard: true } : { codec: isMp4 ? 'aac' : 'opus', ...(o.audioKbps ? { bitrate: o.audioKbps * 1000 } : {}) };
 
@@ -144,7 +167,13 @@ export async function convertVideoWeb(
 
 // ---------- fotograma (navegador) ----------
 
-export async function extractFrameWeb(file: File, time: number, format: FrameFormat, maxHeight: number): Promise<ArrayBuffer> {
+export async function extractFrameWeb(
+  file: File,
+  time: number,
+  format: FrameFormat,
+  maxHeight: number,
+  watermark?: WatermarkOptions | null,
+): Promise<ArrayBuffer> {
   const url = URL.createObjectURL(file);
   try {
     const video = document.createElement('video');
@@ -163,7 +192,14 @@ export async function extractFrameWeb(file: File, time: number, format: FrameFor
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
-    canvas.getContext('2d')!.drawImage(video, 0, 0, w, h);
+    const ctx2d = canvas.getContext('2d')!;
+    ctx2d.drawImage(video, 0, 0, w, h);
+    if (hasWatermark(watermark)) {
+      const bitmap = await decodeWatermarkImage(watermark);
+      const sprite = makeSprite(watermark, bitmap);
+      bitmap?.close();
+      if (sprite) drawSprite(ctx2d, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+    }
     const mime = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[format];
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, mime, 0.92));
     if (!blob) throw new Error('No se pudo generar la imagen');
