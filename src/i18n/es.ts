@@ -142,7 +142,7 @@ export const es = {
   'v.kind.gif': 'GIF animado',
   'v.kind.webp': 'WebP animado',
   'v.kind.frame': 'Fotograma',
-  'v.webOnlyNote': 'El GIF y el WebP animado sólo están en la app de escritorio.',
+  'v.webOnlyNote': 'El WebP animado sólo está en la app de escritorio (el GIF también funciona en el navegador).',
   'v.format.mp4-h264': 'MP4 (H.264)',
   'v.format.mp4-h265': 'MP4 (H.265)',
   'v.format.webm-vp9': 'WebM (VP9)',

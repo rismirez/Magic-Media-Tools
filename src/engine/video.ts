@@ -2,6 +2,7 @@ import {
   ALL_FORMATS,
   BlobSource,
   BufferTarget,
+  CanvasSink,
   Conversion,
   Input,
   Mp4OutputFormat,
@@ -245,4 +246,70 @@ export function probeDuration(file: File): Promise<number> {
     v.onerror = () => done(0);
     v.src = url;
   });
+}
+
+// ---------- GIF (navegador) ----------
+
+const MAX_GIF_FRAMES = 1500;
+
+/** GIF animado en el navegador: fotogramas con mediabunny + codificador GIF en JS (256 colores por fotograma). */
+export async function convertGifWeb(
+  file: File,
+  o: VideoOptions,
+  onProgress: (ratio: number) => void,
+  handle: WebHandle,
+  watermark?: WatermarkOptions | null,
+): Promise<ArrayBuffer> {
+  const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
+  const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    if (!track) throw new Error('El archivo no contiene vídeo');
+    const total = await input.computeDuration();
+    const start = Math.min(o.start, Math.max(0, total - 0.1));
+    const end = o.end > start ? Math.min(o.end, total) : total;
+    const fps = Math.max(1, Math.min(30, o.animFps || 12));
+    const count = Math.max(1, Math.floor((end - start) * fps));
+    if (count > MAX_GIF_FRAMES) throw new Error(`El GIF tendría ${count} fotogramas (máximo ${MAX_GIF_FRAMES}). Recorta el fragmento o baja los FPS.`);
+
+    const width = Math.max(16, Math.min(o.animWidth || 480, track.displayWidth));
+    const sink = new CanvasSink(track, { width: Math.round(width) });
+    const timestamps = Array.from({ length: count }, (_, i) => start + i / fps);
+
+    let sprite: ReturnType<typeof makeSprite> = null;
+    if (hasWatermark(watermark)) {
+      const bitmap = await decodeWatermarkImage(watermark);
+      sprite = makeSprite(watermark, bitmap);
+      bitmap?.close();
+    }
+
+    let cancelled = false;
+    handle.cancel = async () => {
+      cancelled = true;
+    };
+    const gif = GIFEncoder();
+    const delay = Math.round(100 / fps) * 10; // el formato GIF cuenta en centésimas
+    let done = 0;
+    for await (const wrapped of sink.canvasesAtTimestamps(timestamps)) {
+      if (cancelled) throw new Error('Cancelado');
+      if (wrapped) {
+        const canvas = wrapped.canvas as HTMLCanvasElement | OffscreenCanvas;
+        const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+        const w = canvas.width;
+        const h = canvas.height;
+        if (sprite && watermark) drawSprite(ctx, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+        const rgba = ctx.getImageData(0, 0, w, h).data;
+        const palette = quantize(rgba, 256);
+        gif.writeFrame(applyPalette(rgba, palette), w, h, { palette, delay });
+      }
+      done++;
+      onProgress(done / count);
+      if (done % 4 === 0) await new Promise((r) => setTimeout(r)); // deja respirar a la interfaz
+    }
+    gif.finish();
+    const bytes = gif.bytes();
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  } finally {
+    input.dispose();
+  }
 }

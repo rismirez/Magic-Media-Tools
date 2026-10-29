@@ -23,7 +23,7 @@ Basado en el análisis de *Image Compressor & WebP Converter*: cola por lotes, 4
 - Extraer un fotograma (JPEG/PNG/WebP).
 - **Marca de agua** (texto o imagen, posición 3×3, opacidad, tamaño en % del ancho) en vídeo, GIF, WebP animado y fotogramas. Escritorio: el texto/imagen se dibuja como PNG y ffmpeg lo superpone; web: se pinta sobre cada fotograma con WebCodecs.
 - **Escritorio:** ffmpeg incluido (rápido, todos los códecs) y además GIF animado y WebP animado.
-- **Web:** WebCodecs vía [mediabunny](https://mediabunny.dev); sólo se ofrecen los formatos que tu navegador puede codificar. El resultado se genera en memoria, así que con vídeos muy grandes es mejor la app de escritorio.
+- **Web:** WebCodecs vía [mediabunny](https://mediabunny.dev); sólo se ofrecen los formatos que tu navegador puede codificar. También puede crear **GIF animado** (codificador propio en JS; el WebP animado sigue siendo sólo de escritorio). El resultado se genera en memoria, así que con vídeos muy grandes es mejor la app de escritorio.
 
 ## Comunes
 

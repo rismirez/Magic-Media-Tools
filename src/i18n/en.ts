@@ -144,7 +144,7 @@ export const en: Dict = {
   'v.kind.gif': 'Animated GIF',
   'v.kind.webp': 'Animated WebP',
   'v.kind.frame': 'Frame',
-  'v.webOnlyNote': 'Animated GIF and WebP are only available in the desktop app.',
+  'v.webOnlyNote': 'Animated WebP is only available in the desktop app (GIF also works in the browser).',
   'v.format.mp4-h264': 'MP4 (H.264)',
   'v.format.mp4-h265': 'MP4 (H.265)',
   'v.format.webm-vp9': 'WebM (VP9)',

@@ -1,6 +1,7 @@
 import { t, type Key } from '../i18n';
 import {
   VIDEO_ACCEPT,
+  convertGifWeb,
   convertVideoWeb,
   defaultVideoOptions,
   extractFrameWeb,
@@ -64,9 +65,9 @@ const QUALITY_ICON: Record<string, string> = { high: 'gem', balanced: 'gauge', s
 
 export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const settings = load();
-  // En la web no hay ffmpeg: GIF/WebP animado sólo existen en escritorio.
+  // En la web no hay ffmpeg: el GIF se genera con un codificador propio; el WebP animado sólo existe en escritorio.
   const desktop = isDesktop() && !!window.desktop?.hasFfmpeg;
-  if (!desktop && (settings.kind === 'gif' || settings.kind === 'webp')) settings.kind = 'video';
+  if (!desktop && settings.kind === 'webp') settings.kind = 'video';
 
   const saveSettings = () => {
     try {
@@ -149,7 +150,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
         <fieldset>
           <legend>${ico('clapperboard')}${esc(t('v.output'))}</legend>
           <div class="seg seg-wrap">
-            ${KINDS.map((k) => `<label data-only="${k === 'gif' || k === 'webp' ? 'desktop' : ''}"><input type="radio" name="kind" data-bind="kind" value="${k}" /><span>${ico(KIND_ICON[k], 16)}${esc(t(`v.kind.${k}` as Key))}</span></label>`).join('')}
+            ${KINDS.map((k) => `<label data-only="${k === 'webp' ? 'desktop' : ''}"><input type="radio" name="kind" data-bind="kind" value="${k}" /><span>${ico(KIND_ICON[k], 16)}${esc(t(`v.kind.${k}` as Key))}</span></label>`).join('')}
           </div>
           <p class="note web-note" hidden>${esc(t('v.webOnlyNote'))}</p>
         </fieldset>
@@ -342,7 +343,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
     if (!preset) return;
     const keepDest = settings.dest;
     Object.assign(settings, defaults(), preset, { dest: keepDest });
-    if (!desktop && (settings.kind === 'gif' || settings.kind === 'webp')) settings.kind = 'video';
+    if (!desktop && settings.kind === 'webp') settings.kind = 'video';
     saveSettings();
     syncToDom();
     render();
@@ -530,13 +531,16 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
           const res = await window.desktop!.videoRun(item.id, inputPath, relOut, options as unknown as DesktopVideoOptions, wmPayload);
           item.outSize = res.size;
         } else {
+          const onProgress = (r: number) => {
+            item.progress = r;
+            renderSoon();
+          };
           const buffer =
             options.kind === 'frame'
               ? await extractFrameWeb(item.src.file, options.frameTime, options.frameFormat, options.maxHeight, wmOptions)
-              : await convertVideoWeb(item.src.file, options, (r) => {
-                  item.progress = r;
-                  renderSoon();
-                }, webHandle, wmOptions);
+              : options.kind === 'gif'
+                ? await convertGifWeb(item.src.file, options, onProgress, webHandle, wmOptions)
+                : await convertVideoWeb(item.src.file, options, onProgress, webHandle, wmOptions);
           await sink.write(relOut, new Uint8Array(buffer));
           item.outSize = buffer.byteLength;
         }
