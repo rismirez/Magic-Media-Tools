@@ -621,6 +621,16 @@ input[type='checkbox']:disabled {
   cursor: pointer;
 }
 
+/* vista previa del texto de la marca de agua */
+.wm-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 4px;
+}
+
 /* selector de color de la marca de agua */
 input[type='color'] {
   appearance: none;

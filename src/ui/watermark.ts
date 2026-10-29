@@ -3,6 +3,7 @@ import type { WatermarkOptions } from '../engine/types';
 import { anchorGrid } from './anchorGrid';
 import { esc } from './format';
 import { ico } from './icons';
+import { drawSprite, placedSprite } from '../engine/watermark';
 
 /** Ajustes guardables de la marca de agua (la imagen va aparte, sólo en memoria). */
 export type WatermarkSettings = Omit<WatermarkOptions, 'image'> & { enabled: boolean };
@@ -46,6 +47,8 @@ export function watermarkHtml(prefix: string): string {
             <label class="chk grow"><input type="checkbox" data-bind="watermark.outline" data-type="bool" />${esc(t('wmOutline'))}</label>
             <input type="color" class="wm-outline-color" data-bind="watermark.outlineColor" data-type="text" title="${esc(t('wmOutlineColor'))}" aria-label="${esc(t('wmOutlineColor'))}" />
           </div>
+          <span class="mini">${esc(t('previewTitle'))}</span>
+          <canvas class="wm-preview" width="320" height="180" aria-hidden="true"></canvas>
         </div>
         <div class="wm-image">
           <div class="row nowrap">
@@ -114,6 +117,28 @@ export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChang
     onChange();
   });
 
+  const previewCanvas = $<HTMLCanvasElement>('.wm-preview');
+  /** Muestra el texto con su tamaño, color, borde, opacidad y posición sobre un fondo de ejemplo (proporción 16:9). */
+  function drawPreview() {
+    const { width: cw, height: ch } = previewCanvas;
+    const ctx = previewCanvas.getContext('2d')!;
+    const bg = ctx.createLinearGradient(0, 0, cw, ch);
+    bg.addColorStop(0, '#5f7fb8');
+    bg.addColorStop(0.55, '#9b86d9');
+    bg.addColorStop(1, '#e8a3c4');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, cw, ch);
+    if (wm.kind !== 'text' || !wm.text.trim()) {
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(t('watermarkText'), cw / 2, ch / 2 + 5);
+      return;
+    }
+    const placed = placedSprite({ ...wm, image: null }, null, cw, ch);
+    if (placed) drawSprite(ctx, placed.sprite, cw, ch, wm.position, placed.width);
+  }
+
   const refresh = () => {
     $('.wm-box').hidden = !wm.enabled;
     $('.wm-text').hidden = wm.kind !== 'text';
@@ -125,6 +150,7 @@ export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChang
     });
     $('.wm-op').textContent = wm.opacity >= 100 ? t('wmOpacityFull') : `${wm.opacity} %`;
     grid.set(wm.position);
+    if (wm.enabled && wm.kind === 'text') drawPreview();
   };
   showFile();
 
