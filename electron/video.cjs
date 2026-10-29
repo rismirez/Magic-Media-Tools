@@ -122,6 +122,8 @@ function buildArgs(o, info, input, output, wm) {
   if (o.kind === 'video') {
     if (o.maxHeight > 0 && (!info.height || info.height > o.maxHeight)) filters.push(`scale=-2:${o.maxHeight}`);
     if (fpsCap) filters.push(`fps=${fpsCap}`);
+    // yuv420p (H.264/H.265) exige ancho y alto pares: GIF y vídeos con medidas impares fallarían.
+    if (o.format.startsWith('mp4')) filters.push('scale=trunc(iw/2)*2:trunc(ih/2)*2');
     applyFilters(filters.join(','));
 
     const fmt = o.format;

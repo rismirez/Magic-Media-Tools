@@ -19,7 +19,7 @@ Basado en el análisis de *Image Compressor & WebP Converter*: cola por lotes, 4
 
 ## Vídeo
 
-- MP4 (H.264 / H.265) y WebM (VP9 / AV1), con perfiles de calidad, peso máximo (MB), resolución y FPS máximos, audio (mantener/quitar y calidad) y recorte de fragmento.
+- Entrada: vídeos y también **GIF animados** (para ponerles marca de agua, recortarlos o convertirlos a MP4/WebM/GIF). MP4 (H.264 / H.265) y WebM (VP9 / AV1), con perfiles de calidad, peso máximo (MB), resolución y FPS máximos, audio (mantener/quitar y calidad) y recorte de fragmento.
 - Extraer un fotograma (JPEG/PNG/WebP).
 - **Marca de agua** (texto o imagen, posición 3×3, opacidad, tamaño en % del ancho) en vídeo, GIF, WebP animado y fotogramas. Escritorio: el texto/imagen se dibuja como PNG y ffmpeg lo superpone; web: se pinta sobre cada fotograma con WebCodecs.
 - **Escritorio:** ffmpeg incluido (rápido, todos los códecs) y además GIF animado y WebP animado.

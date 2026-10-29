@@ -16,6 +16,7 @@ import {
   type VideoSample,
 } from 'mediabunny';
 import type { WatermarkOptions } from './types';
+import { probeGifDuration } from './gifInput';
 import { decodeWatermarkImage, drawSprite, hasWatermark, makeSprite } from './watermark';
 
 export type VideoKind = 'video' | 'gif' | 'webp' | 'frame';
@@ -62,7 +63,7 @@ export const defaultVideoOptions: VideoOptions = {
   frameFormat: 'jpeg',
 };
 
-const VIDEO_EXTS = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'mts', 'm2ts', '3gp', 'ogv'];
+const VIDEO_EXTS = ['gif', 'mp4', 'm4v', 'mov', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', 'ts', 'mts', 'm2ts', '3gp', 'ogv'];
 export const VIDEO_ACCEPT = VIDEO_EXTS.map((e) => `.${e}`).join(',');
 export const isVideoFile = (name: string) => VIDEO_EXTS.includes(name.slice(name.lastIndexOf('.') + 1).toLowerCase());
 
@@ -234,6 +235,7 @@ function once(el: HTMLVideoElement, event: string, errorMessage: string): Promis
 
 /** Duración en segundos leyendo sólo los metadatos (0 si el navegador no puede). */
 export function probeDuration(file: File): Promise<number> {
+  if (file.name.toLowerCase().endsWith('.gif')) return probeGifDuration(file);
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement('video');

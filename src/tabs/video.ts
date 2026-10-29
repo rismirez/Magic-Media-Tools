@@ -20,6 +20,7 @@ import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
 import { dropAnywhere } from '../ui/dropAnywhere';
+import { convertFromGifWeb, isGifName } from '../engine/gifInput';
 import { ico, iconVideoAdd } from '../ui/icons';
 import type { TabOptions } from './image';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
@@ -535,8 +536,9 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
             item.progress = r;
             renderSoon();
           };
-          const buffer =
-            options.kind === 'frame'
+          const buffer = isGifName(item.src.file.name)
+            ? await convertFromGifWeb(item.src.file, options, onProgress, webHandle, wmOptions)
+            : options.kind === 'frame'
               ? await extractFrameWeb(item.src.file, options.frameTime, options.frameFormat, options.maxHeight, wmOptions)
               : options.kind === 'gif'
                 ? await convertGifWeb(item.src.file, options, onProgress, webHandle, wmOptions)
