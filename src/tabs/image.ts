@@ -155,7 +155,7 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
         <input id="in-folder" type="file" multiple hidden webkitdirectory />
 
         <div class="queue-head">
-          <h2>${ico('list')}${esc(t('queue'))}</h2>
+          <h2>${ico('list')}${esc(t('queue'))}<span class="q-count" hidden></span></h2>
           <button type="button" id="btn-clear" class="link">${ico('trash', 16)}${esc(t('clear'))}</button>
         </div>
         <div class="table-wrap">
@@ -304,6 +304,7 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const drop = $('#drop');
   const rows = $('#rows');
   const emptyMsg = $('#empty');
+  const qCount = $('.q-count');
   const btnConvert = $<HTMLButtonElement>('#btn-convert');
   const btnCancel = $<HTMLButtonElement>('#btn-cancel');
   const btnOpen = $<HTMLButtonElement>('#btn-open');
@@ -578,6 +579,8 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
 
     const convertible = items.filter((i) => i.status !== 'skipped');
     emptyMsg.hidden = items.length > 0;
+    qCount.hidden = items.length === 0;
+    qCount.textContent = String(items.length);
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
     btnConvert.innerHTML = running ? `<span class="spin">${ico('loader', 20)}</span><span>${esc(t('converting'))}</span>` : `${ico('wand', 20)}<span>${esc(t('convert'))}</span>`;

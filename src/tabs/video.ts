@@ -109,7 +109,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
         <input class="in-folder" type="file" multiple hidden webkitdirectory />
 
         <div class="queue-head">
-          <h2>${ico('list')}${esc(t('queue'))}</h2>
+          <h2>${ico('list')}${esc(t('queue'))}<span class="q-count" hidden></span></h2>
           <button type="button" class="link" data-act="clear">${ico('trash', 16)}${esc(t('clear'))}</button>
         </div>
         <div class="table-wrap">
@@ -253,6 +253,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const $ = <T extends HTMLElement>(sel: string) => app.querySelector<T>(sel)!;
   const rows = $('.rows');
   const emptyMsg = $('.empty');
+  const qCount = $('.q-count');
   const btn = (act: string) => app.querySelector<HTMLButtonElement>(`[data-act=${act}]`)!;
   const btnConvert = btn('convert');
   const btnCancel = btn('cancel');
@@ -412,6 +413,8 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
 
     const convertible = items.filter((i) => i.status !== 'skipped');
     emptyMsg.hidden = items.length > 0;
+    qCount.hidden = items.length === 0;
+    qCount.textContent = String(items.length);
     btnClear.hidden = items.length === 0 || running;
     btnConvert.disabled = running || convertible.length === 0;
     btnConvert.innerHTML = running ? `<span class="spin">${ico('loader', 20)}</span><span>${esc(t('converting'))}</span>` : `${ico('wand', 20)}<span>${esc(t('convert'))}</span>`;

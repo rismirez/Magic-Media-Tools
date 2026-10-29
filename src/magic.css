@@ -551,3 +551,18 @@ th:nth-child(1) {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* contador de la cola */
+.q-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--brand-grad);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
