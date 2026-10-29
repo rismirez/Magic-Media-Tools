@@ -510,7 +510,7 @@ th:nth-child(1) {
 }
 @media (max-width: 860px) {
   .top {
-    position: static;
+    position: relative; /* no fija, pero por encima del contenido para que el aviso de «Descargar» no se corte */
   }
   .settings {
     position: static;
@@ -657,4 +657,71 @@ input[type='color']::-webkit-color-swatch-wrapper {
 input[type='color']::-webkit-color-swatch {
   border: 0;
   border-radius: 7px;
+}
+
+/* ---------- móvil ---------- */
+/* Cabecera en tres filas: marca · idioma/tema · pestañas con «Descargar» a la derecha. */
+@media (max-width: 640px) {
+  .top {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .top .titles {
+    flex: 1 1 calc(100% - 56px);
+    min-width: 0;
+  }
+  .top .top-tools {
+    display: contents;
+  }
+  .top .top-tools .dd {
+    flex: 1 1 calc(50% - 5px);
+    order: 2;
+  }
+  .top .top-tools .dd + .dd {
+    order: 3;
+  }
+  .top .tabs {
+    order: 4;
+  }
+  .top .dl-wrap {
+    order: 5;
+    margin-left: auto;
+  }
+  .top .tabs button {
+    padding: 9px 14px;
+  }
+  .top .btn.dl {
+    padding: 9px 12px;
+  }
+  /* El aviso se alinea al borde derecho del botón y nunca supera el ancho de la pantalla. */
+  .dl-tip {
+    right: 0;
+    width: min(250px, calc(100vw - 32px));
+  }
+}
+
+/* Con el lateral apilado, el botón Convertir queda fijo abajo en toda la pantalla. */
+@media (max-width: 860px) {
+  .layout {
+    padding-bottom: 150px;
+  }
+  .settings {
+    overflow: visible;
+    backdrop-filter: none; /* un padre con backdrop-filter haría de «viewport» para el hijo fijo */
+    -webkit-backdrop-filter: none;
+  }
+  .settings > .action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -12px 24px -16px rgb(0 0 0 / 0.5);
+  }
 }
