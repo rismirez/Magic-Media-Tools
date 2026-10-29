@@ -138,6 +138,7 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   app.innerHTML = `
     <div class="layout">
       <section class="panel">
+        <p class="intro">${esc(t('appTagline'))}</p>
         <div id="drop" class="drop" tabindex="0">
           <svg class="drop-border" aria-hidden="true"><rect /></svg>
           <div class="drop-icon">${iconImageAdd}</div>

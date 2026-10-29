@@ -43,7 +43,6 @@ app.innerHTML = `
     <img class="logo" src="${import.meta.env.BASE_URL}favicon.png" alt="" width="48" height="48" />
     <div class="titles">
       <h1>${t('appTitle')}</h1>
-      <p>${t('appTagline')}</p>
     </div>
     <div class="top-tools">
       ${
@@ -91,6 +90,12 @@ const videoTab = mountVideoTab(panels.video, {
 });
 mountMagicBackground();
 enhanceSelects(app);
+
+// La cabecera es fija; el lateral y la cabecera de la cola se pegan justo debajo de ella.
+const header = app.querySelector<HTMLElement>('.top')!;
+const syncHeader = () => document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+new ResizeObserver(syncHeader).observe(header);
+syncHeader();
 observeIcons(document.body);
 
 const selTheme = app.querySelector<HTMLSelectElement>('#sel-theme')!;
