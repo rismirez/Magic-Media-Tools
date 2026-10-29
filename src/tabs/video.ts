@@ -7,7 +7,7 @@ import {
   extractFrameWeb,
   isVideoFile,
   outputExt,
-  probeDuration,
+  probeInfo,
   supportedWebFormats,
   type VideoFormat,
   type VideoKind,
@@ -34,6 +34,9 @@ interface Item {
   status: Status;
   inSize: number;
   duration: number;
+  /** Medidas del original (0 hasta leerlas). */
+  width?: number;
+  height?: number;
   progress: number;
   outSize?: number;
   error?: string;
@@ -266,10 +269,19 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
   const savedSel = $<HTMLSelectElement>('.saved-sel');
   const savedName = $<HTMLInputElement>('.saved-name');
 
-  const wm = mountWatermark(app, settings.watermark, () => {
-    saveSettings();
-    wm.refresh();
-  });
+  const wm = mountWatermark(
+    app,
+    settings.watermark,
+    () => {
+      saveSettings();
+      wm.refresh();
+    },
+    // La vista previa usa las medidas del resultado del primer archivo para que coincida con la exportación.
+    () => {
+      const first = items.find((i) => i.width && i.height);
+      return first ? outputSize(settings, first.width!, first.height!) : null;
+    },
+  );
 
   // ---------- ajustes ----------
 
@@ -374,9 +386,12 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
       };
       items.push(item);
       if (supported) {
-        void probeDuration(src.file).then((d) => {
-          item.duration = d;
+        void probeInfo(src.file).then((info) => {
+          item.duration = info.duration;
+          item.width = info.width;
+          item.height = info.height;
           renderSoon();
+          wm.refresh();
         });
       }
     }

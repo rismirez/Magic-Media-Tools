@@ -321,7 +321,8 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
     changed();
   });
   $('#anchor-host').appendChild(cropAnchor.el);
-  const wm = mountWatermark(app, settings.watermark, () => changed());
+  let previewSize: { w: number; h: number } | null = null;
+  const wm = mountWatermark(app, settings.watermark, () => changed(), () => previewSize);
 
   // ---------- ajustes ----------
 
@@ -523,6 +524,8 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
       resize: settings.resize,
     });
     $('#crop-caption').textContent = t('previewCaption', { w: outW, h: outH });
+    previewSize = sample ? { w: outW, h: outH } : null;
+    wm.refresh();
   }
 
   // ---------- cola ----------

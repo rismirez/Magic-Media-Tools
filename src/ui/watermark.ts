@@ -77,7 +77,13 @@ export interface WatermarkControl {
   hasImage(): boolean;
 }
 
-export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChange: () => void): WatermarkControl {
+export function mountWatermark(
+  root: HTMLElement,
+  wm: WatermarkSettings,
+  onChange: () => void,
+  /** Medidas (px) del resultado para que la vista previa tenga su misma proporción; sin ellas, 16:9. */
+  getSize?: () => { w: number; h: number } | null,
+): WatermarkControl {
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
   wm.color ||= '#ffffff'; // ajustes guardados antes de existir estos campos
   wm.outline ??= false;
@@ -120,6 +126,12 @@ export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChang
   const previewCanvas = $<HTMLCanvasElement>('.wm-preview');
   /** Muestra el texto con su tamaño, color, borde, opacidad y posición sobre un fondo de ejemplo (proporción 16:9). */
   function drawPreview() {
+    const size = getSize?.();
+    const ratio = size && size.w > 0 && size.h > 0 ? size.w / size.h : 16 / 9;
+    // Mismas proporciones que el resultado: el tamaño del texto y dónde se parte la línea dependen de ellas.
+    previewCanvas.width = ratio >= 1 ? 320 : Math.max(60, Math.round(240 * ratio));
+    previewCanvas.height = ratio >= 1 ? Math.max(60, Math.round(320 / ratio)) : 240;
+    previewCanvas.style.aspectRatio = `${previewCanvas.width} / ${previewCanvas.height}`;
     const { width: cw, height: ch } = previewCanvas;
     const ctx = previewCanvas.getContext('2d')!;
     const bg = ctx.createLinearGradient(0, 0, cw, ch);

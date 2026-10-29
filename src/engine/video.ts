@@ -16,7 +16,7 @@ import {
   type VideoSample,
 } from 'mediabunny';
 import type { WatermarkOptions } from './types';
-import { probeGifDuration } from './gifInput';
+import { probeGif } from './gifInput';
 import { hasWatermark, watermarkPainter } from './watermark';
 
 export type VideoKind = 'video' | 'gif' | 'webp' | 'frame';
@@ -229,19 +229,21 @@ function once(el: HTMLVideoElement, event: string, errorMessage: string): Promis
   });
 }
 
-/** Duración en segundos leyendo sólo los metadatos (0 si el navegador no puede). */
-export function probeDuration(file: File): Promise<number> {
-  if (file.name.toLowerCase().endsWith('.gif')) return probeGifDuration(file);
+/** Duración (s) y medidas leyendo sólo los metadatos (0 si el navegador no puede). */
+export function probeInfo(file: File): Promise<{ duration: number; width: number; height: number }> {
+  if (file.name.toLowerCase().endsWith('.gif')) return probeGif(file);
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement('video');
-    const done = (d: number) => {
+    const done = (ok: boolean) => {
+      const duration = ok && Number.isFinite(v.duration) ? v.duration : 0;
+      const info = { duration, width: ok ? v.videoWidth : 0, height: ok ? v.videoHeight : 0 };
       URL.revokeObjectURL(url);
-      resolve(Number.isFinite(d) ? d : 0);
+      resolve(info);
     };
     v.preload = 'metadata';
-    v.onloadedmetadata = () => done(v.duration);
-    v.onerror = () => done(0);
+    v.onloadedmetadata = () => done(true);
+    v.onerror = () => done(false);
     v.src = url;
   });
 }

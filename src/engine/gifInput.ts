@@ -30,22 +30,26 @@ function decoderCtor(): typeof ImageDecoder {
   return ImageDecoder;
 }
 
-/** Duración total del GIF en segundos (0 si no se puede leer). */
-export async function probeGifDuration(file: File): Promise<number> {
+/** Duración (s) y medidas del GIF; todo 0 si no se puede leer. */
+export async function probeGif(file: File): Promise<{ duration: number; width: number; height: number }> {
   try {
     const decoder = new (decoderCtor())({ data: await file.arrayBuffer(), type: 'image/gif' });
     await decoder.tracks.ready;
     const n = decoder.tracks.selectedTrack?.frameCount ?? 0;
     let total = 0;
+    let width = 0;
+    let height = 0;
     for (let i = 0; i < n; i++) {
       const { image } = await decoder.decode({ frameIndex: i });
       total += (image.duration ?? 0) / 1e6;
+      width = image.displayWidth;
+      height = image.displayHeight;
       image.close();
     }
     decoder.close();
-    return total;
+    return { duration: total, width, height };
   } catch {
-    return 0;
+    return { duration: 0, width: 0, height: 0 };
   }
 }
 
