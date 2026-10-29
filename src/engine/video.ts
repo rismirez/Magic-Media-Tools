@@ -17,7 +17,7 @@ import {
 } from 'mediabunny';
 import type { WatermarkOptions } from './types';
 import { probeGifDuration } from './gifInput';
-import { decodeWatermarkImage, drawSprite, hasWatermark, makeSprite } from './watermark';
+import { hasWatermark, watermarkPainter } from './watermark';
 
 export type VideoKind = 'video' | 'gif' | 'webp' | 'frame';
 export type VideoFormat = 'mp4-h264' | 'mp4-h265' | 'webm-vp9' | 'webm-av1';
@@ -128,23 +128,20 @@ export async function convertVideoWeb(
     if (!stats.averagePacketRate || stats.averagePacketRate > o.maxFps + 0.5) video.frameRate = o.maxFps;
   }
 
+
   if (hasWatermark(watermark)) {
     // Cada fotograma (ya redimensionado) se pinta en un lienzo con la marca de agua encima.
-    const bitmap = await decodeWatermarkImage(watermark);
-    const sprite = makeSprite(watermark, bitmap);
-    bitmap?.close();
-    if (sprite) {
-      let canvas: OffscreenCanvas | null = null;
-      video.process = (sample: VideoSample) => {
-        const w = sample.displayWidth;
-        const h = sample.displayHeight;
-        if (!canvas || canvas.width !== w || canvas.height !== h) canvas = new OffscreenCanvas(w, h);
-        const ctx = canvas.getContext('2d')!;
-        sample.draw(ctx, 0, 0, w, h);
-        drawSprite(ctx, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
-        return canvas;
-      };
-    }
+    const wm = await watermarkPainter(watermark);
+    let canvas: OffscreenCanvas | null = null;
+    video.process = (sample: VideoSample) => {
+      const w = sample.displayWidth;
+      const h = sample.displayHeight;
+      if (!canvas || canvas.width !== w || canvas.height !== h) canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext('2d')!;
+      sample.draw(ctx, 0, 0, w, h);
+      wm.paint(ctx, w, h);
+      return canvas;
+    };
   }
 
   const audio: Record<string, unknown> =
@@ -197,10 +194,9 @@ export async function extractFrameWeb(
     const ctx2d = canvas.getContext('2d')!;
     ctx2d.drawImage(video, 0, 0, w, h);
     if (hasWatermark(watermark)) {
-      const bitmap = await decodeWatermarkImage(watermark);
-      const sprite = makeSprite(watermark, bitmap);
-      bitmap?.close();
-      if (sprite) drawSprite(ctx2d, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+      const wm = await watermarkPainter(watermark);
+      wm.paint(ctx2d, w, h);
+      wm.close();
     }
     const mime = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[format];
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, mime, 0.92));
@@ -278,12 +274,7 @@ export async function convertGifWeb(
     const sink = new CanvasSink(track, { width: Math.round(width) });
     const timestamps = Array.from({ length: count }, (_, i) => start + i / fps);
 
-    let sprite: ReturnType<typeof makeSprite> = null;
-    if (hasWatermark(watermark)) {
-      const bitmap = await decodeWatermarkImage(watermark);
-      sprite = makeSprite(watermark, bitmap);
-      bitmap?.close();
-    }
+    const wm = hasWatermark(watermark) ? await watermarkPainter(watermark) : null;
 
     let cancelled = false;
     handle.cancel = async () => {
@@ -299,7 +290,7 @@ export async function convertGifWeb(
         const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
         const w = canvas.width;
         const h = canvas.height;
-        if (sprite && watermark) drawSprite(ctx, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+        wm?.paint(ctx, w, h);
         const rgba = ctx.getImageData(0, 0, w, h).data;
         const palette = quantize(rgba, 256);
         gif.writeFrame(applyPalette(rgba, palette), w, h, { palette, delay });

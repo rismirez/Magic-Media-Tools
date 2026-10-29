@@ -160,7 +160,7 @@ ipcMain.handle('video:run', async (event, req) => {
     wm = {
       file: path.join(app.getPath('temp'), `magic-media-tools-wm-${process.pid}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.png`),
       position: Math.min(8, Math.max(0, Math.floor(Number(position) || 0))),
-      widthPct: Math.min(80, Math.max(2, Number(widthPct) || 20)),
+      widthPct: Math.min(100, Math.max(1, Number(widthPct) || 20)),
     };
     await fs.writeFile(wm.file, png, { flag: 'wx' });
   }
@@ -182,6 +182,14 @@ ipcMain.handle('video:run', async (event, req) => {
 });
 
 ipcMain.handle('video:cancel', (_event, id) => video.cancel(id));
+
+// Medidas del vídeo de entrada: el renderer las necesita para dibujar la marca de texto a su tamaño real.
+ipcMain.handle('video:probe', async (_event, inputPath) => {
+  if (typeof inputPath !== 'string' || !path.isAbsolute(inputPath)) throw new Error('Ruta de entrada inválida');
+  if (!(await fs.stat(inputPath)).isFile()) throw new Error('La entrada no es un archivo');
+  const { width, height } = await video.probe(inputPath);
+  return { width, height };
+});
 
 ipcMain.handle('output:open', async () => {
   if (outputRoot) await shell.openPath(outputRoot);

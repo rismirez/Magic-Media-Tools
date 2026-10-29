@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('desktop', {
   getPathForFile: (file) => webUtils.getPathForFile(file),
   videoRun: (id, inputPath, relOut, options, watermark) => ipcRenderer.invoke('video:run', { id, inputPath, relOut, options, watermark }),
   videoCancel: (id) => ipcRenderer.invoke('video:cancel', id),
+  videoProbe: (inputPath) => ipcRenderer.invoke('video:probe', inputPath),
   onVideoProgress: (cb) => {
     const handler = (_e, payload) => cb(payload);
     ipcRenderer.on('video:progress', handler);

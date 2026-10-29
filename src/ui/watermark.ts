@@ -20,16 +20,14 @@ export const defaultWatermark = (): WatermarkSettings => ({
 /**
  * Bloque de marca de agua compartido por imagen y vídeo. Los campos usan `data-bind="watermark.*"`,
  * así que el enlazado genérico de cada pestaña los gestiona; aquí sólo van la imagen, la cuadrícula y la visibilidad.
- * `video`: el tamaño es siempre «% del ancho» (el texto se convierte en una imagen que se superpone).
+ * `video` ya no cambia los campos: el texto tiene tamaño fijo (alto en % del lado menor) y la imagen va en % del ancho.
  */
-export function watermarkHtml(prefix: string, video: boolean): string {
+export function watermarkHtml(prefix: string): string {
   const kinds = (['text', 'image'] as const)
     .map((k) => `<label><input type="radio" name="${prefix}-wm-kind" data-bind="watermark.kind" value="${k}" /><span>${ico(k === 'text' ? 'type' : 'image', 16)}${esc(t(k === 'text' ? 'wm.kindText' : 'wm.kindImage'))}</span></label>`)
     .join('');
-  const sizeText = video
-    ? ''
-    : `<label class="field" data-wm-size="text">${esc(t('textSize'))}<input type="range" min="2" max="20" data-bind="watermark.sizePct" data-type="number" /></label>`;
-  const sizeImage = `<label class="field" data-wm-size="${video ? 'both' : 'image'}">${esc(t('wmImageSize'))}<input type="range" min="2" max="80" data-bind="watermark.imgPct" data-type="number" /></label>`;
+  const sizeText = `<label class="field" data-wm-size="text">${esc(t('textSize'))}<input type="range" min="2" max="20" data-bind="watermark.sizePct" data-type="number" /></label>`;
+  const sizeImage = `<label class="field" data-wm-size="image">${esc(t('wmImageSize'))}<input type="range" min="2" max="80" data-bind="watermark.imgPct" data-type="number" /></label>`;
   return `
     <fieldset class="wm-fieldset">
       <legend>${ico('stamp')}${esc(t('watermark'))}</legend>

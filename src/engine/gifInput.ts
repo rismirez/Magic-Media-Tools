@@ -1,7 +1,7 @@
 import { BufferTarget, CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, QUALITY_LOW, QUALITY_MEDIUM, WebMOutputFormat } from 'mediabunny';
 import type { FrameFormat, VideoOptions, WebHandle } from './video';
 import type { WatermarkOptions } from './types';
-import { decodeWatermarkImage, drawSprite, hasWatermark, makeSprite } from './watermark';
+import { hasWatermark, watermarkPainter } from './watermark';
 
 /** GIF como entrada de la pestaña de vídeo en el navegador: mediabunny no lee GIF, así que se decodifica con ImageDecoder. */
 
@@ -123,17 +123,12 @@ export async function convertFromGifWeb(
     const canvas = new OffscreenCanvas(w, h);
     const ctx = canvas.getContext('2d', { willReadFrequently: o.kind === 'gif' })!;
 
-    let sprite: ReturnType<typeof makeSprite> = null;
-    if (hasWatermark(watermark)) {
-      const bitmap = await decodeWatermarkImage(watermark);
-      sprite = makeSprite(watermark, bitmap);
-      bitmap?.close();
-    }
+    const wm = hasWatermark(watermark) ? await watermarkPainter(watermark) : null;
     const paint = (f: GifFrame) => {
       ctx.fillStyle = '#fff'; // GIF sin color de fondo: se rellena para vídeo/JPEG y no deja ruido en el GIF
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(f.bmp, 0, 0, w, h);
-      if (sprite && watermark) drawSprite(ctx, sprite, w, h, watermark.position, (w * watermark.imgPct) / 100);
+      wm?.paint(ctx, w, h);
     };
 
     const start = Math.min(o.start, Math.max(0, gif.total - 0.05));

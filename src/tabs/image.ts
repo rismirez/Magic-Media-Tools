@@ -270,7 +270,7 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
           <p class="note">${esc(t('sizesHint'))}</p>
         </fieldset>
 
-        ${watermarkHtml('img', false)}
+        ${watermarkHtml('img')}
 
         <fieldset>
           <legend>${ico('type')}${esc(t('naming'))}</legend>

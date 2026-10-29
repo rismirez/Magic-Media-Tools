@@ -24,7 +24,7 @@ import { convertFromGifWeb, isGifName } from '../engine/gifInput';
 import { ico, iconVideoAdd } from '../ui/icons';
 import type { TabOptions } from './image';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
-import { watermarkPng } from '../engine/watermark';
+import { outputSize, watermarkPng } from '../engine/watermark';
 
 type Status = 'pending' | 'processing' | 'done' | 'error' | 'skipped';
 
@@ -228,7 +228,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
           <p class="note">${esc(t('v.trimHint'))}</p>
         </fieldset>
 
-        ${watermarkHtml('vid', true)}
+        ${watermarkHtml('vid')}
 
         <fieldset class="dest-box">
           <legend>${ico('folder-open')}${esc(t('destination'))}</legend>
@@ -508,7 +508,6 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
     }
     const options: VideoOptions = { ...settings };
     const wmOptions = await wm.options();
-    const wmPng = wmOptions && desktop ? await watermarkPng(wmOptions) : null;
     unsubscribe = window.desktop?.onVideoProgress?.(({ id, ratio }) => {
       if (id !== currentId) return;
       const item = items.find((i) => i.id === id);
@@ -528,7 +527,14 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
         const relOut = outputName(item.src.relPath, options);
         if (desktop) {
           const inputPath = window.desktop!.getPathForFile(item.src.file);
-          const wmPayload = wmOptions && wmPng ? { png: wmPng, position: wmOptions.position, widthPct: wmOptions.imgPct } : null;
+          // La marca se dibuja a medida de cada vídeo (el texto no se escala: su tamaño depende del resultado).
+          let wmPayload: { png: Uint8Array; position: number; widthPct: number } | null = null;
+          if (wmOptions) {
+            const dims = await window.desktop!.videoProbe(inputPath).catch(() => ({ width: 0, height: 0 }));
+            const out = outputSize(options, dims.width || 1280, dims.height || 720);
+            const made = await watermarkPng(wmOptions, out.w, out.h);
+            if (made) wmPayload = { png: made.png, position: wmOptions.position, widthPct: made.widthPct };
+          }
           const res = await window.desktop!.videoRun(item.id, inputPath, relOut, options as unknown as DesktopVideoOptions, wmPayload);
           item.outSize = res.size;
         } else {

@@ -24,6 +24,8 @@ interface DesktopApi {
     watermark?: { png: Uint8Array; position: number; widthPct: number } | null,
   ): Promise<{ relPath: string; size: number }>;
   videoCancel(id: number): Promise<void>;
+  /** Medidas del vídeo de entrada (0 si no se pudieron leer). */
+  videoProbe(inputPath: string): Promise<{ width: number; height: number }>;
   onVideoProgress(cb: (p: { id: number; ratio: number }) => void): () => void;
 }
 
