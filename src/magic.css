@@ -527,31 +527,6 @@ th:nth-child(1) {
   line-height: 1.5;
 }
 
-/* ---------- color de iconos: morado sólo en las secciones de ajustes, el resto aguamarina ---------- */
-h2 .ico,
-.btn .ico,
-.link .ico,
-.dd-btn > .ico:first-child,
-.view-btn .ico,
-.compare-head .ico,
-.drop-icon,
-.x.cmp {
-  color: var(--accent-2);
-}
-legend .ico {
-  color: var(--accent);
-}
-.btn.primary .ico,
-.btn.dl:hover .ico,
-.drop .btn.main .ico,
-.drop .btn:hover .ico,
-.btn.primary.convert .ico {
-  color: #fff;
-}
-.btn.dl:hover .ico {
-  color: inherit;
-}
-
 /* ---------- barras de scroll finas, sin flechas ---------- */
 ::-webkit-scrollbar {
   width: 10px;

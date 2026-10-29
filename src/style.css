@@ -327,7 +327,7 @@ legend {
   cursor: pointer;
 }
 .preset > span > .ico {
-  color: var(--accent-2);
+  color: var(--accent);
   flex: none;
 }
 .preset .pr-txt {
