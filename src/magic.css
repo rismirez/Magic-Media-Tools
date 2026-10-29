@@ -553,10 +553,6 @@ legend .ico {
 }
 
 /* ---------- barras de scroll finas, sin flechas ---------- */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent) transparent;
-}
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
