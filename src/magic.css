@@ -603,9 +603,9 @@ input[type='checkbox']:hover:not(:disabled) {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 input[type='checkbox']:checked {
-  background: var(--brand-grad);
-  border-color: transparent;
-  box-shadow: 0 4px 10px -4px rgb(138 66 252 / 0.8);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: none;
 }
 input[type='checkbox']:checked::after {
   transform: rotate(-45deg) scale(1);
