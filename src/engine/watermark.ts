@@ -90,11 +90,22 @@ export function placedSprite(w: WatermarkOptions, bitmap: ImageBitmap | null, cw
   ctx.textAlign = col === 0 ? 'left' : col === 1 ? 'center' : 'right';
   const color = /^#[0-9a-f]{6}$/i.test(w.color ?? '') ? w.color! : '#ffffff';
   const lum = (0.299 * parseInt(color.slice(1, 3), 16) + 0.587 * parseInt(color.slice(3, 5), 16) + 0.114 * parseInt(color.slice(5, 7), 16)) / 255;
-  ctx.shadowColor = lum > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.5)'; // sombra contraria para que se lea sobre cualquier fondo
-  ctx.shadowBlur = fontPx * 0.12;
+  const outline = !!w.outline;
+  if (outline) {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2, fontPx * 0.14);
+    ctx.strokeStyle = /^#[0-9a-f]{6}$/i.test(w.outlineColor ?? '') ? w.outlineColor! : '#000000';
+  } else {
+    ctx.shadowColor = lum > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.5)'; // sombra contraria para que se lea sobre cualquier fondo
+    ctx.shadowBlur = fontPx * 0.12;
+  }
   ctx.fillStyle = color;
   const x = col === 0 ? pad : col === 1 ? sprite.width / 2 : sprite.width - pad;
-  lines.forEach((line, i) => ctx.fillText(line, x, pad + lineH * i + lineH / 2));
+  lines.forEach((line, i) => {
+    const y = pad + lineH * i + lineH / 2;
+    if (outline) ctx.strokeText(line, x, y);
+    ctx.fillText(line, x, y);
+  });
   return { sprite, width: sprite.width };
 }
 

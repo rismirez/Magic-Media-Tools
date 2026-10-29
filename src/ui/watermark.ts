@@ -12,6 +12,8 @@ export const defaultWatermark = (): WatermarkSettings => ({
   kind: 'text',
   text: '',
   color: '#ffffff',
+  outline: false,
+  outlineColor: '#000000',
   position: 8,
   opacity: 100,
   sizePct: 5,
@@ -39,6 +41,10 @@ export function watermarkHtml(prefix: string): string {
           <div class="row nowrap">
             <input type="text" data-bind="watermark.text" data-type="text" maxlength="80" placeholder="${esc(t('watermarkText'))}" />
             <input type="color" class="wm-color" data-bind="watermark.color" data-type="text" title="${esc(t('wmColor'))}" aria-label="${esc(t('wmColor'))}" />
+          </div>
+          <div class="row nowrap wm-outline">
+            <label class="chk grow"><input type="checkbox" data-bind="watermark.outline" data-type="bool" />${esc(t('wmOutline'))}</label>
+            <input type="color" class="wm-outline-color" data-bind="watermark.outlineColor" data-type="text" title="${esc(t('wmOutlineColor'))}" aria-label="${esc(t('wmOutlineColor'))}" />
           </div>
         </div>
         <div class="wm-image">
@@ -70,7 +76,9 @@ export interface WatermarkControl {
 
 export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChange: () => void): WatermarkControl {
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
-  wm.color ||= '#ffffff'; // ajustes guardados antes de existir el color
+  wm.color ||= '#ffffff'; // ajustes guardados antes de existir estos campos
+  wm.outline ??= false;
+  wm.outlineColor ||= '#000000';
   const input = $<HTMLInputElement>('.wm-input');
   const thumb = $<HTMLImageElement>('.wm-thumb');
   let file: File | null = null;
@@ -109,6 +117,7 @@ export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChang
   const refresh = () => {
     $('.wm-box').hidden = !wm.enabled;
     $('.wm-text').hidden = wm.kind !== 'text';
+    $<HTMLInputElement>('.wm-outline-color').disabled = !wm.outline;
     $('.wm-image').hidden = wm.kind !== 'image';
     root.querySelectorAll<HTMLElement>('[data-wm-size]').forEach((el) => {
       const only = el.dataset.wmSize;

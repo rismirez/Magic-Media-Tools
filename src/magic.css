@@ -634,7 +634,10 @@ input[type='color'] {
   background: var(--bg);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-input[type='color']:hover {
+input[type='color']:disabled {
+  opacity: 0.4;
+}
+input[type='color']:hover:not(:disabled) {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }

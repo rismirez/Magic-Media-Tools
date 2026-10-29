@@ -71,6 +71,8 @@ export const en: Dict = {
   watermarkEnable: 'Add watermark',
   watermarkText: 'Watermark text',
   wmColor: 'Text color',
+  wmOutline: 'Text outline',
+  wmOutlineColor: 'Outline color',
   opacity: 'Opacity',
   textSize: 'Text size',
 

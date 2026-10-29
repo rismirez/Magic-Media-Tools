@@ -70,6 +70,8 @@ export const es = {
   watermarkEnable: 'Añadir marca de agua',
   watermarkText: 'Texto de la marca de agua',
   wmColor: 'Color del texto',
+  wmOutline: 'Borde del texto',
+  wmOutlineColor: 'Color del borde',
   opacity: 'Opacidad',
   textSize: 'Tamaño del texto',
 

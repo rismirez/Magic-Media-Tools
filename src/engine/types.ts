@@ -8,6 +8,9 @@ export interface WatermarkOptions {
   text: string;
   /** Color del texto (#rrggbb). */
   color?: string;
+  /** Borde del texto (desactivado por defecto) y su color. */
+  outline?: boolean;
+  outlineColor?: string;
   /** Posición 3×3 como índice 0-8 (fila * 3 + columna). */
   position: number;
   /** 0-100 */
