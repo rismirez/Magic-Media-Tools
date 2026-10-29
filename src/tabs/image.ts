@@ -13,6 +13,7 @@ import { isVideoFile } from '../engine/video';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
+import { dropAnywhere } from '../ui/dropAnywhere';
 
 type Status = 'pending' | 'processing' | 'done' | 'error' | 'skipped';
 
@@ -677,19 +678,8 @@ export function mountImageTab(app: HTMLElement, tabOpts: TabOptions = {}) {
     });
   }
 
-  drop.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    drop.classList.add('over');
-  });
-  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-  drop.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    drop.classList.remove('over');
-    if (e.dataTransfer) addSources(await fromDrop(e.dataTransfer));
-  });
-  // Evita que soltar fuera de la zona navegue a la imagen.
-  window.addEventListener('dragover', (e) => e.preventDefault());
-  window.addEventListener('drop', (e) => e.preventDefault());
+  // Se puede soltar en cualquier parte de la app (y soltar fuera no navega a la imagen).
+  dropAnywhere(app, drop, async (dt) => addSources(await fromDrop(dt)));
 
   // Pegar imágenes del portapapeles (sólo con la pestaña de imagen visible).
   window.addEventListener('paste', (e) => {

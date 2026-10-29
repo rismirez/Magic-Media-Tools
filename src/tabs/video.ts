@@ -18,6 +18,7 @@ import { fromDrop, fromInput, isSupported, type Source } from '../engine/input';
 import { canPickFolder, createSink, isDesktop, type SinkKind } from '../platform/sinks';
 import { esc, fmtBytes, fmtDuration, getPath, pct, safeName, setPath, splitPath } from '../ui/format';
 import { loadPresets, savePresets } from '../ui/savedPresets';
+import { dropAnywhere } from '../ui/dropAnywhere';
 import { ico, iconVideoAdd } from '../ui/icons';
 import type { TabOptions } from './image';
 import { defaultWatermark, mountWatermark, watermarkHtml, type WatermarkSettings } from '../ui/watermark';
@@ -460,16 +461,7 @@ export function mountVideoTab(app: HTMLElement, tabOpts: TabOptions = {}) {
       input.value = '';
     });
   }
-  drop.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    drop.classList.add('over');
-  });
-  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-  drop.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    drop.classList.remove('over');
-    if (e.dataTransfer) addSources(await fromDrop(e.dataTransfer));
-  });
+  dropAnywhere(app, drop, async (dt) => addSources(await fromDrop(dt)));
 
   // ---------- conversión ----------
 
