@@ -566,3 +566,8 @@ th:nth-child(1) {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* La barra de Convertir se pega al borde real del lateral (el sticky respeta el padding del contenedor). */
+.settings > .action-bar {
+  bottom: -16px;
+}
