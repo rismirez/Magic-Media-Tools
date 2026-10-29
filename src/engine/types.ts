@@ -6,6 +6,8 @@ export type PresetId = 'keep' | 'lossless' | 'balanced' | 'smallest';
 export interface WatermarkOptions {
   kind: 'text' | 'image';
   text: string;
+  /** Color del texto (#rrggbb). */
+  color?: string;
   /** Posición 3×3 como índice 0-8 (fila * 3 + columna). */
   position: number;
   /** 0-100 */

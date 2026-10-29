@@ -11,6 +11,7 @@ export const defaultWatermark = (): WatermarkSettings => ({
   enabled: false,
   kind: 'text',
   text: '',
+  color: '#ffffff',
   position: 8,
   opacity: 100,
   sizePct: 5,
@@ -35,7 +36,10 @@ export function watermarkHtml(prefix: string): string {
       <div class="wm-box">
         <div class="seg">${kinds}</div>
         <div class="wm-text">
-          <input type="text" data-bind="watermark.text" data-type="text" maxlength="80" placeholder="${esc(t('watermarkText'))}" />
+          <div class="row nowrap">
+            <input type="text" data-bind="watermark.text" data-type="text" maxlength="80" placeholder="${esc(t('watermarkText'))}" />
+            <input type="color" class="wm-color" data-bind="watermark.color" data-type="text" title="${esc(t('wmColor'))}" aria-label="${esc(t('wmColor'))}" />
+          </div>
         </div>
         <div class="wm-image">
           <div class="row nowrap">
@@ -66,6 +70,7 @@ export interface WatermarkControl {
 
 export function mountWatermark(root: HTMLElement, wm: WatermarkSettings, onChange: () => void): WatermarkControl {
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  wm.color ||= '#ffffff'; // ajustes guardados antes de existir el color
   const input = $<HTMLInputElement>('.wm-input');
   const thumb = $<HTMLImageElement>('.wm-thumb');
   let file: File | null = null;

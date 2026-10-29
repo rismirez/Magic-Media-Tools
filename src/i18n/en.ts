@@ -70,6 +70,7 @@ export const en: Dict = {
   watermark: 'Watermark',
   watermarkEnable: 'Add watermark',
   watermarkText: 'Watermark text',
+  wmColor: 'Text color',
   opacity: 'Opacity',
   textSize: 'Text size',
 
