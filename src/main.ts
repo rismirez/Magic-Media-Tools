@@ -7,6 +7,7 @@ import { isDesktop } from './platform/sinks';
 import { ico, observeIcons } from './ui/icons';
 import { enhanceSelects } from './ui/select';
 import { mountMagicBackground } from './ui/magic';
+import { mountSupportWidget } from './ui/support';
 
 /** Última versión publicada del instalador de Windows en GitHub Releases. */
 const DOWNLOAD_URL = 'https://github.com/rismirez/Magic-Media-Tools/releases/latest';
@@ -89,6 +90,7 @@ const videoTab = mountVideoTab(panels.video, {
   },
 });
 mountMagicBackground();
+if (!isDesktop()) mountSupportWidget();
 enhanceSelects(app);
 
 // La cabecera es fija; el lateral y la cabecera de la cola se pegan justo debajo de ella.

@@ -725,3 +725,15 @@ input[type='color']::-webkit-color-swatch {
     box-shadow: 0 -12px 24px -16px rgb(0 0 0 / 0.5);
   }
 }
+
+/* ---------- botón flotante de «Buy me a coffee»: nunca tapa la barra de Convertir ---------- */
+@media (max-width: 1260px) {
+  #bmc-wbtn {
+    bottom: calc(var(--bar-h, 0px) + 32px) !important;
+  }
+}
+@media (max-width: 860px) {
+  #bmc-wbtn {
+    bottom: calc(var(--bar-h, 0px) + 14px) !important;
+  }
+}
